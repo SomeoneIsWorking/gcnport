@@ -139,9 +139,10 @@ void unauthenticated_identity_is_rejected() {
 } // namespace
 
 int main() {
-  hooks_are_scoped_by_image_generation_and_address();
-  original_call_ticket_suppresses_exactly_one_matching_entry();
-  original_call_must_be_claimed_before_completion();
-  unauthenticated_identity_is_rejected();
-  return 0;
+  return gcnport::test::run_test_main("native_hooks", [] {
+    hooks_are_scoped_by_image_generation_and_address();
+    original_call_ticket_suppresses_exactly_one_matching_entry();
+    original_call_must_be_claimed_before_completion();
+    unauthenticated_identity_is_rejected();
+  });
 }
