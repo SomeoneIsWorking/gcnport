@@ -51,7 +51,7 @@ machine alone does not prove that backend property.
 ### S003 — Dolphin embedding contract
 
 Issue 001 remains open. Pinned fork revision
-`9dfd5ac1f4c0c2d9da7661e1895a39b293286521` adds an instance-owned
+`804be144296bfca46931d76cd9ff9f4b0f4e4e4b` adds an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
 hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports

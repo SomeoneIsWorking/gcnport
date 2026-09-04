@@ -6,7 +6,7 @@ affects: S003 S004 S005 S006
 
 # Dolphin lacks the title-neutral gcnport execution seam
 
-Pinned revision `9dfd5ac1f4c0c2d9da7661e1895a39b293286521` implements the title-neutral runtime
+Pinned revision `804be144296bfca46931d76cd9ff9f4b0f4e4e4b` implements the title-neutral runtime
 session, generated Jit64 and JitArm64 hook guards, hook-aware invalidation, tail-only original
 fallthrough, and real cold/cache/hook counters.
 
