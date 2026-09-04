@@ -8,8 +8,8 @@ native/dynarec ports without retaining the offline product.
 
 ## Current focus
 
-S003 is the current focus: add the title-neutral fork API that connects the verified gcnport policy
-to Dolphin's real JIT, hook dispatch, one-shot original execution, invalidation, and counters.
+S003 remains the current focus: add the one-block executor, bounded typed fallback, and synchronous
+original-call continuation to the now-pinned native-hook/JIT-observation slice.
 
 ## Capability inventory
 
@@ -17,11 +17,12 @@ to Dolphin's real JIT, hook dispatch, one-shot original execution, invalidation,
 | --- | --- | --- | --- | --- |
 | S001 | JIT-default execution policy and bounded typed fallback accounting | verified | focused execution-session tests | G001 |
 | S002 | Authenticated image/module-scoped hook registry and one-shot original tickets | verified | focused hook/original tests | G002 |
-| S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | blocked | issue 001: all 11 required fork seams are absent | G001, G002, G003 |
-| S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | missing | requires S003 | G001, G003 |
+| S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | partial | pinned fork implements the instance session, hook guards, invalidation, and block/hook counters; 6/11 contract requirements remain missing | G001, G002, G003 |
+| S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | partial | synthetic shipping-JIT test proves cold/cache-hit/hook/original-tail/invalidation execution; public one-block adapter, instruction counts, and fallback remain missing | G001, G003 |
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | pinned full-history workflow defines Linux x64/arm64, Windows x64, and macOS x64/arm64 execution; hosted results remain pending until the workflow runs | G003 |
 
 ## Capability details
 
@@ -49,39 +50,57 @@ machine alone does not prove that backend property.
 
 ### S003 — Dolphin embedding contract
 
-Blocker: issue 001. At pinned Dolphin revision
-`7fd812471e8f2030ccde7081b7c329aa252d5360`, the only guest-dispatch interception is the title-named
-`sb_slot_jit_trampoline`, which runs only on a cache miss. The fork exposes no one-block runtime
-session, no title-neutral hook API, no unpublished one-shot original block, no typed runtime fallback
-events, and no actual block-execution denominators. `tools/check_dolphin_contract.py` reports all
-eleven missing surface requirements and its self-test proves both present and missing text fixtures;
-the probe deliberately does not claim that finding symbols proves executable semantics.
+Issue 001 remains open. Pinned fork revision
+`9dfd5ac1f4c0c2d9da7661e1895a39b293286521` adds an instance-owned
+`PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
+generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
+hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
+six of eleven operations still absent.
 
-The pinned commit is published on the maintained fork's `sunbright` branch, so
-fresh submodule initialization is reproducible.
+Authenticated image boot, public one-block execution, bounded typed fallback, explicit diagnostic
+interpretation, and synchronous native → original → native continuation remain missing. The existing
+Dolphin instruction-lowering fallback is still untyped and therefore cannot support a no-interpreter
+gameplay claim.
 
 ### S004 — x86_64 execution
 
-Missing capability: build the fork adapter with Clang/Ninja, execute a real cold PPC block through JIT64, prove a
-cache hit and invalidation/recompile, exercise native/disabled/original hook paths, and report nonzero
-JIT denominators plus bounded fallback reasons.
+Partial capability: `GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation` runs a redistributable
+PPC arithmetic/branch program through Dolphin's ordinary JIT64 loop. Generated instrumentation proves
+a cold compilation, cache/direct-link entries, hook-triggered invalidation and recompilation, one
+ordinary-body execution followed by hook re-entry, and a controlled-negative identity generation.
+All 1,344 Dolphin unit tests pass in the Clang/Ninja evidence build.
+
+The gcnport `RuntimeBackend` adapter, one-observable-block exit, exact retired-instruction counters,
+typed bounded fallback, publication-failure injection, and a synchronous original-call continuation
+remain missing.
 
 ### S005 — Apple Silicon execution
 
-Missing capability: qualify the shipping JitArm64 backend on Apple Silicon macOS, including MAP_JIT/write-
+Missing capability: the hosted workflow now schedules the synthetic shipping-JIT discriminator on
+Apple Silicon macOS, but no hosted result has run from this uncommitted workflow. MAP_JIT/write-
 protection transitions, instruction-cache coherence, ABI transitions, exceptions/signals, hooks,
-original calls, and representative gameplay.
+original calls, and representative gameplay still require evidence.
 
 ### S006 — Android execution
 
-Missing capability: integrate the same fork contract into Android arm64-v8a and qualify executable-memory
-publication, cache coherence, ABI transitions, lifecycle/exceptions, hooks, original calls, packaging,
-and representative gameplay. macOS AArch64 evidence cannot substitute for this item.
+Missing capability: there is no real NDK/APK/device runtime boundary, so hosted CI deliberately has
+no Android job. Integrate the fork contract into Android arm64-v8a and qualify executable-memory
+publication, cache coherence, ABI transitions, lifecycle/exceptions, hooks, original calls,
+packaging, and representative gameplay. macOS AArch64 evidence cannot substitute for this item.
 
 ### S007 — project quality gate
 
 Evidence: `tools/verify.py` uses the locked Python environment, Clang, and Ninja; builds and runs both
-focused C++ tests; checks `clang-format` and `clang-tidy`; runs structure and Dolphin-contract probes;
-and exercises planted positive/negative controls. `tools/check_structure.py` checks 1,200-line limits
-and rejects direct product output or environment reads. The maintained fork is a submodule rather than
-copied first-party source.
+focused C++ tests; checks installability, `clang-format`, and `clang-tidy`; runs structure, dependency,
+Dolphin-contract, and CI-contract probes; and exercises planted positive/negative controls.
+`tools/check_structure.py` checks 1,200-line limits and rejects direct product output or environment
+reads. The maintained fork is a submodule rather than copied first-party source.
+
+### S008 — hosted synthetic runtime
+
+Partial capability: `.github/workflows/hosted-verification.yml` checks out full recursive history
+with immutable action revisions and calls the same `tools/verify.py --runtime` entry point on native
+Linux x64/arm64, Windows x64, and macOS x64/arm64 runners. The verifier rejects a runner identity
+mismatch, checks the selected CMake compiler family, asserts that the exact synthetic runtime test is
+present, and requires exactly one non-skipped pass. This workflow has not run while the change is
+uncommitted, so it is configuration evidence rather than host qualification evidence.

@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Protocol
 
 
-PINNED_REVISION = "7fd812471e8f2030ccde7081b7c329aa252d5360"
 BRIDGE_HEADER = Path("Source/Core/Core/PowerPC/GcnPortRuntime.h")
 BRIDGE_SOURCE = Path("Source/Core/Core/PowerPC/GcnPortRuntime.cpp")
 

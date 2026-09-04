@@ -21,9 +21,9 @@ title composition
 | Hook selection | Authenticated image/module/address registration and invalidation | `include/gcnport/native_hooks.h`, `src/native_hooks.cpp` | `NativeHookRegistry` | `docs/dolphin-embedding-contract.md` |
 | Original calls | Single-use exact-key suppression tickets and invalidation | `include/gcnport/original_calls.h`, `src/original_calls.cpp` | `OriginalCallCoordinator` | `docs/dolphin-embedding-contract.md` |
 | Diagnostics | Typed runtime event delivery without direct process output | `include/gcnport/diagnostics.h` | `DiagnosticsSink` | `AGENTS.md` |
-| Dolphin backend | Boot/runtime ownership, JIT observation, hooks, original blocks, invalidation | Target: maintained Dolphin fork plus future adapter source | Target `PowerPC::GcnPort::RuntimeSession` | `docs/dolphin-embedding-contract.md` |
+| Dolphin backend | Boot/runtime ownership, JIT observation, hooks, original calls, invalidation | Maintained fork `Source/Core/Core/PowerPC/GcnPortRuntime.*` plus future adapter source | `PowerPC::GcnPort::RuntimeSession` | `docs/dolphin-embedding-contract.md` |
 | Dependency pin | Exact maintained-fork checkout identity | `dependencies.json`, `.gitmodules`, `cmake/DolphinDependency.cmake`, `extern/dolphin/` | `gcnport_require_dolphin_checkout` | `README.md` |
-| Verification tooling | Structure, fork-contract, build, test, format, lint orchestration | `tools/` | `tools/verify.py` | `README.md` |
+| Verification tooling | Structure, dependency, CI-contract, build, test, format, lint, and native synthetic-JIT orchestration | `tools/`, `.github/workflows/hosted-verification.yml` | `tools/verify.py` | `README.md` |
 
 ## Placement index
 

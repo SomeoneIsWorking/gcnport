@@ -1,18 +1,19 @@
 # Dolphin embedding contract
 
-This document specifies the smallest fork change that can turn the existing framework policy into a
-real GameCube runtime executor. It is an implementation contract, not evidence that the current fork
-already satisfies it.
+This document specifies the fork changes that turn the framework policy into a real GameCube runtime
+executor. The native-hook slice described below is pinned and has executable x86_64 evidence; the
+remaining operations are still a contract rather than implemented capability.
 
 ## Evidence at the pinned revision
 
 The inspected dependency is `SomeoneIsWorking/dolphin` revision
-`7fd812471e8f2030ccde7081b7c329aa252d5360`, the exact gitlink currently used by Sunbright.
+`9dfd5ac1f4c0c2d9da7661e1895a39b293286521`, published on the fork's `main` branch and pinned by the
+gcnport gitlink.
 
 - `JitBase::Dispatch` returns an already-published block from Dolphin's block cache.
 - The generated x86_64 and AArch64 dispatchers call `JitTrampoline` only after cache lookup fails.
-- `sb_slot_jit_trampoline` in `Common/SunbrightHooks.h` can intercept that cache miss, but it is a
-  process-global, title-named function pointer. A cache hit or direct block link does not consult it.
+- The older `sb_slot_jit_trampoline` cache-miss boundary remains insufficient on its own. The pinned
+  slice instead emits title-neutral runtime-session guards in Jit64 and JitArm64 guest operations.
 - `JitInterface::InvalidateICache` can revoke translated ranges and their links, which is the correct
   backend primitive for hook/image invalidation.
 - `Jit64::FallBackToInterpreter` and `JitArm64::FallBackToInterpreter` emit direct interpreter calls
@@ -27,6 +28,12 @@ The inspected dependency is `SomeoneIsWorking/dolphin` revision
 The existing trampoline is insufficient for original calls. Letting it return `false` compiles and
 publishes the hooked target. Recursive calls and cache-linked callers can then execute that published
 block without consulting the hook, so a global suppression flag cannot mean “only this invocation.”
+
+The pinned implementation emits a hook guard before every hooked operation in the published
+block. `RunOriginalOnce` falls through that guard for only the current entry; a loop, recursive call,
+cache hit, or direct-linked entry reaches the guard again. This is sufficient for a tail replacement
+that does not resume native code after the guest body. A synchronous native → original → native call
+still needs an explicit continuation and remains missing.
 
 ## Required Dolphin owner
 
@@ -51,7 +58,7 @@ The public surface needs these semantic operations (the exact spelling is delibe
 | `ExecuteRefusedBlock` | Execute only the explicitly refused PC and no more than the supplied instruction bound, then return to JIT dispatch. |
 | `ExecuteDiagnosticInterpreterBlock` | Execute only through an explicit diagnostic session; never share the gameplay selector. |
 | `InstallNativeHook` | Make hook selection part of every entry path, including cache hits and block links, using the full image/generation/address key. |
-| `ExecuteOriginalOnce` / `RunOriginalOnce` | Consume one matching ticket and execute an unpublished, unlinked JIT block. Recursive or concurrent entries still consult the hook. Destroy the one-shot code before ordinary dispatch resumes. |
+| `ExecuteOriginalOnce` / `RunOriginalOnce` | Consume one matching call and run the ordinary body once without making recursive, cache-hit, or linked entries bypass the hook. An unpublished block is required for dispatcher-only interception; an always-emitted per-operation guard may instead fall through only the current guard. Synchronous native continuation after the guest returns remains a separate required operation. |
 | `InvalidateGuestCode` | Revoke affected blocks and direct links for hook changes, executable writes, module changes, and restore events before execution resumes. |
 | `ExecutionCounters` | Report actual compiled blocks, cache-hit executions, total JIT block/instruction executions, invalidations, hook calls, originals, and runtime fallback blocks/instructions by reason. |
 
@@ -75,19 +82,22 @@ No asynchronous “interpret while compiling” path and no first-pass interpret
 
 ## Hook and invalidation mechanics
 
-A correct implementation can use one of two shapes:
+A correct implementation can use one of three shapes:
 
 - emit a small hook-aware entry stub as the only published target for a hooked address; or
-- force every edge to a hooked address through a hook-aware dispatcher and prevent a direct link.
+- force every edge to a hooked address through a hook-aware dispatcher and prevent a direct link; or
+- emit a guard at the hooked guest operation in every block that contains it, and invalidate every
+  containing block and inbound link whenever hook selection changes.
 
 Both shapes must revoke older links when a hook changes. Checking only in the current
 `JitTrampoline` cache-miss callback is not sufficient.
 
-`OriginalCallCoordinator::begin` produces a ticket for one full key. Dolphin must claim that ticket
-at the target before compilation. The resulting block must not enter the ordinary lookup table and
-must not accept inbound direct links. The ticket is consumed before execution, so recursion sees the
-normal hook. On normal return, exception, bounded exit, or cancellation, destroy the one-shot block,
-complete/cancel the ticket, and invalidate the target before resuming.
+`OriginalCallCoordinator::begin` produces a ticket for one full key. A dispatcher-only implementation
+must claim that ticket at the target before compilation, keep the resulting block out of the ordinary
+lookup table, and destroy it on every exit. A guard implementation may consume the current hook result
+by falling through the already-live guard, because every later entry still consults the guard. It must
+not use a global suppression flag. Resuming the same native callback after guest return still requires
+a bounded continuation owner and cannot be represented by the tail-only hook result.
 
 Executable writes and MMU/image lifecycle changes call the same invalidation owner. A savestate
 restore increments the runtime generation (or restores a generation that cannot alias stale cache
@@ -135,3 +145,18 @@ disc and prove, through the shipping adapter:
 
 Only after that test passes should a title consume the adapter and attempt the `GMSE01`
 `J3DShape::draw` discriminator.
+
+### Implemented pinned subset
+
+`GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation` uses Dolphin's ordinary CPU/JIT loop and
+a three-instruction, redistributable PPC program. On x86_64 it proves a cold JIT64 compilation, later
+cache/direct-link entries, exact identity-scoped hook selection, invalidation and recompilation on
+hook install, one ordinary body execution followed by hook re-entry, and controlled-negative module
+identity selection. Its counters are incremented by generated block-entry and hook guards, not by a
+test-side model.
+
+This does not implement or prove authenticated image boot, a public one-block executor, bounded typed
+fallback, diagnostic-only interpretation, synchronous native continuation after an original call,
+or per-instruction retirement counts. Hosted verification is configured to execute JitArm64 on
+Apple Silicon macOS. Android remains unqualified and has no CI job until a real NDK/APK/device
+runtime boundary exists; macOS AArch64 evidence cannot substitute for it.

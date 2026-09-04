@@ -1,4 +1,4 @@
 [submodule "extern/dolphin"]
 	path = extern/dolphin
 	url = https://github.com/SomeoneIsWorking/dolphin.git
-	branch = sunbright
+	branch = main
