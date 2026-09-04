@@ -29,15 +29,18 @@ target_compile_features(gcnport PUBLIC cxx_std_20)
 if(GCPORT_BUILD_TESTS)
   include(CTest)
 
-  add_executable(gcnport_execution_session_test tests/execution_session_test.cpp)
-  target_link_libraries(gcnport_execution_session_test PRIVATE gcnport::gcnport)
-  target_include_directories(gcnport_execution_session_test PRIVATE tests)
-  add_test(NAME execution_session COMMAND gcnport_execution_session_test)
+  function(gcnport_add_test target test_name source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE gcnport::gcnport)
+    target_include_directories(${target} PRIVATE tests)
+    add_test(NAME ${test_name} COMMAND ${target})
+  endfunction()
 
-  add_executable(gcnport_native_hooks_test tests/native_hooks_test.cpp)
-  target_link_libraries(gcnport_native_hooks_test PRIVATE gcnport::gcnport)
-  target_include_directories(gcnport_native_hooks_test PRIVATE tests)
-  add_test(NAME native_hooks COMMAND gcnport_native_hooks_test)
+  gcnport_add_test(
+    gcnport_execution_session_test execution_session tests/execution_session_test.cpp
+  )
+  gcnport_add_test(gcnport_native_hooks_test native_hooks tests/native_hooks_test.cpp)
+  gcnport_add_test(gcnport_test_support_test test_support tests/test_support_test.cpp)
 endif()
 
 install(TARGETS gcnport EXPORT gcnport-targets)

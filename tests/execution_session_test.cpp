@@ -224,12 +224,13 @@ void diagnostic_mode_is_explicit_and_separate() {
 } // namespace
 
 int main() {
-  default_mode_compiles_before_execution();
-  refused_block_is_bounded_then_returns_to_jit();
-  backend_fault_never_enters_interpreter();
-  default_fallback_budget_is_disabled();
-  partially_configured_fallback_budget_is_rejected();
-  fallback_budget_fails_closed();
-  diagnostic_mode_is_explicit_and_separate();
-  return 0;
+  return gcnport::test::run_test_main("execution_session", [] {
+    default_mode_compiles_before_execution();
+    refused_block_is_bounded_then_returns_to_jit();
+    backend_fault_never_enters_interpreter();
+    default_fallback_budget_is_disabled();
+    partially_configured_fallback_budget_is_rejected();
+    fallback_budget_fails_closed();
+    diagnostic_mode_is_explicit_and_separate();
+  });
 }
