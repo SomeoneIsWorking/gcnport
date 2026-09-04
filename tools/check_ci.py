@@ -20,7 +20,10 @@ def main() -> int:
     args = parse_args()
     if args.selftest:
         self_test()
-        print("hosted-CI checker self-test passed: complete and mutable-pin fixtures checked")
+        print(
+            "hosted-CI checker self-test passed: complete, mutable-pin, and "
+            "runner-specific Python fixtures checked"
+        )
         return 0
     workflow = args.root / ".github" / "workflows" / "hosted-verification.yml"
     try:
