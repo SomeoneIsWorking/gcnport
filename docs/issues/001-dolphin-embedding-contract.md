@@ -6,12 +6,16 @@ affects: S003 S004 S005 S006
 
 # Dolphin lacks the title-neutral gcnport execution seam
 
-Pinned revision `7fd812471e8f2030ccde7081b7c329aa252d5360` exposes a Sunbright-named cache-miss
-trampoline, but not the block lifecycle required by `docs/dolphin-embedding-contract.md`.
+Pinned revision `9dfd5ac1f4c0c2d9da7661e1895a39b293286521` implements the title-neutral runtime
+session, generated Jit64 and JitArm64 hook guards, hook-aware invalidation, tail-only original
+fallthrough, and real cold/cache/hook counters.
 
-Resolve this in the maintained fork by implementing the title-neutral runtime session, runtime
-fallback instrumentation, hook-aware link invalidation, and unpublished one-shot originals. Then pin
-the pushed fork commit here and validate real x86_64 execution before changing this issue or S003.
+Its synthetic x86_64 shipping-JIT discriminator and the full Dolphin unit-test binary pass. The guard
+is re-entered by recursion and direct links, so it does not use global suppression.
 
-The current pin is published on the maintained fork's `sunbright` branch; the
-remaining blocker is the missing embedding contract itself.
+Resolve the remaining issue by adding authenticated boot, public one-block execution, typed bounded
+fallback, diagnostic-only interpretation, and synchronous native → original → native continuation,
+then build the actual gcnport adapter.
+
+The current pin is still missing six of the eleven absence-probe requirements. Symbol presence is
+not the completion gate.

@@ -1,58 +1,34 @@
 #!/usr/bin/env python3
-"""Run gcnport's local landing gate with Clang and Ninja."""
+"""Run gcnport's canonical local or native-hosted landing gate."""
 
 from __future__ import annotations
 
-import sys
+import argparse
 from pathlib import Path
 
-from gcnport_tools.runner import run
+from gcnport_tools.dolphin_runtime import verify_runtime
+from gcnport_tools.host import detect_host, self_test as host_self_test
+from gcnport_tools.project_verifier import verify_project
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--runtime", action="store_true", help="build and execute the Dolphin JIT test"
+    )
+    parser.add_argument("--expected-os", choices=("linux", "windows", "macos"))
+    parser.add_argument("--expected-arch", choices=("x64", "arm64"))
+    return parser.parse_args()
 
 
 def main() -> int:
+    args = parse_args()
     root = Path(__file__).resolve().parents[1]
-    build = root / "build" / "verify"
-    python = sys.executable
-    run([python, "tools/check_structure.py", "--selftest"], root)
-    run([python, "tools/check_structure.py", "--root", str(root)], root)
-    run([python, "tools/check_dependency.py", "--selftest"], root)
-    run([python, "tools/check_dependency.py", "--root", "extern/dolphin"], root)
-    run([python, "tools/check_dolphin_contract.py", "--selftest"], root)
-    run([python, "tools/check_dolphin_contract.py", "--root", "extern/dolphin"], root)
-    run(
-        [
-            "cmake",
-            "-S",
-            ".",
-            "-B",
-            str(build),
-            "-G",
-            "Ninja",
-            "-DCMAKE_CXX_COMPILER=clang++",
-            "-DCMAKE_BUILD_TYPE=Debug",
-        ],
-        root,
-    )
-    run(["cmake", "--build", str(build)], root)
-    run(["ctest", "--test-dir", str(build), "--output-on-failure"], root)
-    cpp_files = sorted(
-        str(path.relative_to(root))
-        for owner in ("include", "src", "tests")
-        for path in (root / owner).rglob("*")
-        if path.suffix in {".cpp", ".h"}
-    )
-    run(["clang-format", "--dry-run", "--Werror", *cpp_files], root)
-    translation_units = [path for path in cpp_files if path.endswith(".cpp")]
-    run(
-        [
-            "clang-tidy",
-            "-p",
-            str(build),
-            "--config-file=.clang-tidy",
-            *translation_units,
-        ],
-        root,
-    )
+    host_self_test()
+    host = detect_host(args.expected_os, args.expected_arch)
+    verify_project(root, host)
+    if args.runtime:
+        verify_runtime(root, host)
     return 0
 
 

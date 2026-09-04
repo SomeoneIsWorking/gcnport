@@ -1,0 +1,54 @@
+name: Hosted verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target_os: linux
+            target_arch: x64
+          - runner: ubuntu-24.04-arm
+            target_os: linux
+            target_arch: arm64
+          - runner: windows-2022
+            target_os: windows
+            target_arch: x64
+          - runner: macos-15-intel
+            target_os: macos
+            target_arch: x64
+          - runner: macos-15
+            target_os: macos
+            target_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - name: Check out full recursive dependency graph
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Select Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.12"
+      - name: Select uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          version: "0.10.12"
+          enable-cache: false
+      - name: Verify project and native Dolphin JIT runtime
+        run: >-
+          uv run --frozen python tools/verify.py --runtime
+          --expected-os ${{ matrix.target_os }}
+          --expected-arch ${{ matrix.target_arch }}

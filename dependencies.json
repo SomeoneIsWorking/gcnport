@@ -1,7 +1,7 @@
 {
   "dolphin": {
-    "branch": "sunbright",
+    "branch": "main",
     "repository": "https://github.com/SomeoneIsWorking/dolphin.git",
-    "revision": "7fd812471e8f2030ccde7081b7c329aa252d5360"
+    "revision": "9dfd5ac1f4c0c2d9da7661e1895a39b293286521"
   }
 }
