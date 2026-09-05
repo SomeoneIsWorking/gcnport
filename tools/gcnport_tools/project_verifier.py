@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .host import HostTarget
-from .runner import run
+from .runner import build_ninja, run
 
 
 def verify_project(root: Path, host: HostTarget) -> None:
@@ -21,6 +21,7 @@ def verify_project(root: Path, host: HostTarget) -> None:
     )
     for check in checks:
         run([python, check, "--selftest"], root)
+    run([python, "tools/test_verifier_orchestration.py"], root)
     run([python, "tools/check_structure.py", "--root", str(root)], root)
     run([python, "tools/check_dependency.py", "--root", "extern/dolphin"], root)
     run([python, "tools/check_dolphin_contract.py", "--root", "extern/dolphin"], root)
@@ -39,7 +40,7 @@ def verify_project(root: Path, host: HostTarget) -> None:
         ],
         root,
     )
-    run(["cmake", "--build", str(build)], root)
+    build_ninja(root, build)
     run(["ctest", "--test-dir", str(build), "--output-on-failure"], root)
     run(["cmake", "--install", str(build), "--prefix", str(install)], root)
     cpp_files = sorted(

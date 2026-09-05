@@ -22,7 +22,7 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows passed PCH compilation in run 33959422491, then exposed missing per-function ISA attributes and awaits the corrected fork | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows passed accelerated AES compilation in run 33960614709, then exposed incomplete rename-structure initialization and awaits the corrected fork | G003 |
 
 ## Capability details
 
@@ -51,13 +51,13 @@ machine alone does not prove that backend property.
 ### S003 — Dolphin embedding contract
 
 Issue 001 remains open. Pinned fork revision
-`dbbd3f17748788f21ec53b5803a75c10abca87cb` includes an instance-owned
+`818ef9de938b3672880f5ff1468729fdaf643679` includes an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
 hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
 six of eleven operations still absent.
 
-Authenticated image boot, public one-block execution, bounded typed fallback, explicit diagnostic
+Gap: authenticated image boot, public one-block execution, bounded typed fallback, explicit diagnostic
 interpretation, and synchronous native → original → native continuation remain missing. The existing
 Dolphin instruction-lowering fallback is still untyped and therefore cannot support a no-interpreter
 gameplay claim.
@@ -70,7 +70,7 @@ a cold compilation, cache/direct-link entries, hook-triggered invalidation and r
 ordinary-body execution followed by hook re-entry, and a controlled-negative identity generation.
 All 1,344 Dolphin unit tests pass in the Clang/Ninja evidence build.
 
-The gcnport `RuntimeBackend` adapter, one-observable-block exit, exact retired-instruction counters,
+Gap: the gcnport `RuntimeBackend` adapter, one-observable-block exit, exact retired-instruction counters,
 typed bounded fallback, publication-failure injection, and a synchronous original-call continuation
 remain missing.
 
@@ -78,7 +78,7 @@ remain missing.
 
 Partial capability: [hosted run 33893139587](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33893139587)
 passes the synthetic shipping-JIT discriminator on native Apple Silicon macOS. This exercises cold
-translation, cached execution, hooks, original-entry suppression, and invalidation. Complete S003
+translation, cached execution, hooks, original-entry suppression, and invalidation. Gap: complete S003
 adapter coverage, publication-failure tests, exception/signal handling, and representative gameplay
 still require evidence.
 
@@ -127,4 +127,19 @@ macro. `Common/Intrinsics.h` now owns compiler-aware function targeting for AES,
 and the existing SSE helpers. Runtime CPU checks and baseline implementations are unchanged. A
 clang-cl probe using that owner emits AES, SHA and AVX/FMA instructions without global ISA flags;
 removing attribution reproduces the failure. The three affected production translation units also
-compile with native Clang. Full Windows runtime qualification still requires a passing hosted run.
+compile with native Clang.
+
+[Windows job 101291749334](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33960614709/job/101291749334)
+passed accelerated AES compilation, then rejected omitted fields in `DirectIOFile.cpp`'s
+`FILE_RENAME_INFO` initializer. The pinned fork explicitly initializes `RootDirectory` to null and
+the filename placeholder to zero; the existing bounded buffer still supplies the destination path.
+A real Windows-target clang-cl probe extracts the shipping initializer and checks both pre-RS1
+and RS1-union SDK layouts, their ABI offsets, and field values. Both positive cases compile; both
+omitted-field controls reproduce the diagnostic under warnings-as-errors. This standalone check
+does not include the full Windows SDK or execute the NT rename API. Gap: full Windows runtime
+qualification remains unsupported pending a passing hosted runtime gate.
+
+The canonical verifier passes Ninja `-k 0` through its shared build owner so independent compiler
+failures are collected in one build attempt. A nonzero build still propagates immediately before
+test discovery, test execution, or installation. Four command-orchestration controls cover the
+successful and failed first-party and Dolphin-runtime paths; this does not change launcher behavior.
