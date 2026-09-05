@@ -22,7 +22,7 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows advanced past compiler-option checks in run 33957856778, then exposed missing PCH include ownership and awaits the corrected fork | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows exposed incompatible shared PCH macro state in run 33958682030 and awaits the per-target PCH correction | G003 |
 
 ## Capability details
 
@@ -51,7 +51,7 @@ machine alone does not prove that backend property.
 ### S003 — Dolphin embedding contract
 
 Issue 001 remains open. Pinned fork revision
-`6a00a76230b7474e30af5786fd633cba5f6dbebc` includes an instance-owned
+`4312befe1d23be2202c0e19a4329ead5e8f182ed` includes an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
 hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
@@ -112,10 +112,12 @@ uses its existing per-language compiler-option probes; a Windows-target clang-cl
 rejects all four unsupported options and accepts a supported UTF-8 positive control with warnings
 treated as errors.
 
-[Windows job 101284334630](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33957856778/job/101284334630)
-advanced past those compiler-option failures, then failed when the shared PCH target resolved
-`pch.h` through Microsoft's implicit include search. The corrected PCH owner publicly exports its
-header directory to both creation and consuming targets. A Windows-target clang-cl probe using the
-production PCH CMake builds and consumes the header with `/WX`; removing the include ownership
-reproduces the hosted diagnostic. Full Windows runtime qualification still requires a passing
-hosted run.
+[Windows job 101286556368](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33958682030/job/101286556368)
+advanced past compiler-option and header-search failures, then rejected a shared binary PCH built
+without the consuming targets' dependency macros. The PCH owner now uses CMake's per-target
+precompilation through the existing `use_pch` interface. Each target builds the same header with its
+own definitions and options; CMake owns its header path and build ordering. A Windows-target
+clang-cl C++23 probe using the production CMake owner builds two consumers with distinct macro
+values and asserts the corresponding precompiled values. Forcing binary PCH reuse reproduces the
+macro mismatch; an unchanged second positive build performs no compilations. Full Windows runtime
+qualification still requires a passing hosted run.
