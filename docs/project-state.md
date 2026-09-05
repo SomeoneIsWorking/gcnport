@@ -19,10 +19,10 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | S002 | Authenticated image/module-scoped hook registry and one-shot original tickets | verified | focused hook/original tests | G002 |
 | S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | partial | pinned fork implements the instance session, hook guards, invalidation, and block/hook counters; 6/11 contract requirements remain missing | G001, G002, G003 |
 | S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | partial | synthetic shipping-JIT test proves cold/cache-hit/hook/original-tail/invalidation execution; public one-block adapter, instruction counts, and fallback remain missing | G001, G003 |
-| S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
+| S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | pinned full-history workflow defines Linux x64/arm64, Windows x64, and macOS x64/arm64 execution; hosted results remain pending until the workflow runs | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows stopped at unsupported clang-cl compiler options and awaits the corrected fork | G003 |
 
 ## Capability details
 
@@ -51,7 +51,7 @@ machine alone does not prove that backend property.
 ### S003 — Dolphin embedding contract
 
 Issue 001 remains open. Pinned fork revision
-`804be144296bfca46931d76cd9ff9f4b0f4e4e4b` adds an instance-owned
+`ed6d9d2cb7bc8589e0a76cbd7103cfa7bb9535de` includes an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
 hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
@@ -76,10 +76,11 @@ remain missing.
 
 ### S005 — Apple Silicon execution
 
-Missing capability: the hosted workflow now schedules the synthetic shipping-JIT discriminator on
-Apple Silicon macOS, but no hosted result has run from this uncommitted workflow. MAP_JIT/write-
-protection transitions, instruction-cache coherence, ABI transitions, exceptions/signals, hooks,
-original calls, and representative gameplay still require evidence.
+Partial capability: [hosted run 33893139587](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33893139587)
+passes the synthetic shipping-JIT discriminator on native Apple Silicon macOS. This exercises cold
+translation, cached execution, hooks, original-entry suppression, and invalidation. Complete S003
+adapter coverage, publication-failure tests, exception/signal handling, and representative gameplay
+still require evidence.
 
 ### S006 — Android execution
 
@@ -102,5 +103,11 @@ Partial capability: `.github/workflows/hosted-verification.yml` checks out full 
 with immutable action revisions and calls the same `tools/verify.py --runtime` entry point on native
 Linux x64/arm64, Windows x64, and macOS x64/arm64 runners. The verifier rejects a runner identity
 mismatch, checks the selected CMake compiler family, asserts that the exact synthetic runtime test is
-present, and requires exactly one non-skipped pass. This workflow has not run while the change is
-uncommitted, so it is configuration evidence rather than host qualification evidence.
+present, and requires exactly one non-skipped pass.
+
+[Run 33893139587](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33893139587)
+passed both Linux architectures and both macOS architectures. Windows failed while compiling the
+bundled C image library because Dolphin passed unsupported MSVC options to clang-cl. The fork now
+uses its existing per-language compiler-option probes; a Windows-target clang-cl C/C++ compile
+rejects all four unsupported options and accepts a supported UTF-8 positive control with warnings
+treated as errors. Full Windows runtime qualification still requires a passing hosted run.
