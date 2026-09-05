@@ -7,7 +7,7 @@ remaining operations are still a contract rather than implemented capability.
 ## Evidence at the pinned revision
 
 The inspected dependency is `SomeoneIsWorking/dolphin` revision
-`804be144296bfca46931d76cd9ff9f4b0f4e4e4b`, published on the fork's `main` branch and pinned by the
+`ed6d9d2cb7bc8589e0a76cbd7103cfa7bb9535de`, published on the fork's `main` branch and pinned by the
 gcnport gitlink.
 
 - `JitBase::Dispatch` returns an already-published block from Dolphin's block cache.
