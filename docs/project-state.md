@@ -22,7 +22,7 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows stopped at unsupported clang-cl compiler options and awaits the corrected fork | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows advanced past compiler-option checks in run 33957856778, then exposed missing PCH include ownership and awaits the corrected fork | G003 |
 
 ## Capability details
 
@@ -51,7 +51,7 @@ machine alone does not prove that backend property.
 ### S003 — Dolphin embedding contract
 
 Issue 001 remains open. Pinned fork revision
-`ed6d9d2cb7bc8589e0a76cbd7103cfa7bb9535de` includes an instance-owned
+`6a00a76230b7474e30af5786fd633cba5f6dbebc` includes an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
 hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
@@ -110,4 +110,12 @@ passed both Linux architectures and both macOS architectures. Windows failed whi
 bundled C image library because Dolphin passed unsupported MSVC options to clang-cl. The fork now
 uses its existing per-language compiler-option probes; a Windows-target clang-cl C/C++ compile
 rejects all four unsupported options and accepts a supported UTF-8 positive control with warnings
-treated as errors. Full Windows runtime qualification still requires a passing hosted run.
+treated as errors.
+
+[Windows job 101284334630](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33957856778/job/101284334630)
+advanced past those compiler-option failures, then failed when the shared PCH target resolved
+`pch.h` through Microsoft's implicit include search. The corrected PCH owner publicly exports its
+header directory to both creation and consuming targets. A Windows-target clang-cl probe using the
+production PCH CMake builds and consumes the header with `/WX`; removing the include ownership
+reproduces the hosted diagnostic. Full Windows runtime qualification still requires a passing
+hosted run.
