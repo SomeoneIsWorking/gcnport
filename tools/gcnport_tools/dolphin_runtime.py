@@ -5,8 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .host import HostTarget
-from .runner import capture, run
-
+from .runner import build_ninja, capture, run
 
 TEST_NAME = "GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation"
 DOLPHIN_OPTIONS = (
@@ -77,7 +76,7 @@ def verify_runtime(root: Path, host: HostTarget) -> None:
             f"Dolphin compiler mismatch: expected {host.cmake_compiler_id}, "
             f"found {actual_compiler_id}"
         )
-    run(["cmake", "--build", str(build), "--target", "tests", "--parallel", "2"], root)
+    build_ninja(root, build, target="tests")
     suffix = "Tests/tests.exe" if host.operating_system == "windows" else "Tests/tests"
     executable = build / "Binaries" / suffix
     listing = capture([str(executable), "--gtest_list_tests"], root)
