@@ -22,7 +22,7 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows exposed incompatible shared PCH macro state in run 33958682030 and awaits the per-target PCH correction | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows passed PCH compilation in run 33959422491, then exposed missing per-function ISA attributes and awaits the corrected fork | G003 |
 
 ## Capability details
 
@@ -51,7 +51,7 @@ machine alone does not prove that backend property.
 ### S003 — Dolphin embedding contract
 
 Issue 001 remains open. Pinned fork revision
-`4312befe1d23be2202c0e19a4329ead5e8f182ed` includes an instance-owned
+`dbbd3f17748788f21ec53b5803a75c10abca87cb` includes an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
 hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
@@ -119,5 +119,12 @@ precompilation through the existing `use_pch` interface. Each target builds the 
 own definitions and options; CMake owns its header path and build ordering. A Windows-target
 clang-cl C++23 probe using the production CMake owner builds two consumers with distinct macro
 values and asserts the corresponding precompiled values. Forcing binary PCH reuse reproduces the
-macro mismatch; an unchanged second positive build performs no compilations. Full Windows runtime
-qualification still requires a passing hosted run.
+macro mismatch; an unchanged second positive build performs no compilations.
+
+[Windows job 101288561785](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33959422491/job/101288561785)
+passed PCH compilation, then exposed AES attributes disabled by clang-cl's `_MSC_VER` compatibility
+macro. `Common/Intrinsics.h` now owns compiler-aware function targeting for AES, SHA1, CPU culling,
+and the existing SSE helpers. Runtime CPU checks and baseline implementations are unchanged. A
+clang-cl probe using that owner emits AES, SHA and AVX/FMA instructions without global ISA flags;
+removing attribution reproduces the failure. The three affected production translation units also
+compile with native Clang. Full Windows runtime qualification still requires a passing hosted run.
