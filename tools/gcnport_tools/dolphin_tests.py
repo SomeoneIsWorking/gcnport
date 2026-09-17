@@ -10,6 +10,11 @@ from .host import SUPPORTED_TARGETS, HostTarget
 SHIPPING_JIT_TEST = "GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation"
 COMMON_TESTS = (
     SHIPPING_JIT_TEST,
+    "GcnPortRuntime.BootAuthenticatedImageAppliesGameCubeOsInitRegisters",
+    "GcnPortRuntime.BootAuthenticatedImageDefaultsToNoGameCubeOsInit",
+    "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
+    "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",
+    "GcnPortRuntime.ClassifyFallbackReasonMatchesStaticOpcodeTables",
     "MsgHandlerTest.AssertForwardsZeroOneAndTwoFormatArguments",
     "MsgHandlerTest.SuccessfulConditionDoesNotEvaluateArgumentsOrReachSink",
     "MsgHandlerTest.HandlerRegistrationReturnsAndRestoresPreviousOwner",

@@ -194,3 +194,40 @@ redistributable test images — and does not implement or prove per-instruction 
 Hosted verification is configured to execute JitArm64 on Apple Silicon macOS. Android remains
 unqualified and has no CI job until a real NDK/APK/device runtime boundary exists; macOS AArch64
 evidence cannot substitute for it.
+
+## GameCube OS-init/apploader adapter (BS2-equivalent register setup)
+
+`BootAuthenticatedImage` boots a raw in-memory image with the PowerPC core left at its
+power-on-reset MSR/BAT state, matching real GameCube hardware before BS1/BS2 runs. Both of Dolphin's
+own maintained boot paths (`CBoot::EmulatedBS2_GC` for a disc boot without a real IPL dump, and the
+real-IPL path) leave that raw state behind quickly: `CBoot::SetupMSR` sets `MSR.{RI,DR,IR,FP}`,
+`CBoot::SetupHID` configures `HID0`/`HID2`, and `CBoot::SetupBAT` installs the exact retail GameCube
+BAT registers (`Source/Core/Core/Boot/Boot_BS2Emu.cpp`) before any GameCube DOL's own code runs. A
+caller that boots a raw image without this step gets PowerPC real-mode addressing (MSR.DR/IR == 0):
+an ordinary effective address like the game's own linked `0x80xxxxxx` symbols is used directly as a
+physical address, landing far outside the console's 24 MiB of RAM and faulting on the first such
+access — this is not a JIT correctness bug, it is missing OS-init state.
+
+`BootAuthenticatedImage` now takes an optional `apply_gamecube_os_init` parameter (default `false`,
+preserving the exact behavior every existing caller and test relies on). When `true`, it calls a new
+public `CBoot::SetupGameCubeBS2Registers(Core::System&)`, which is a thin wrapper reusing
+`CBoot::SetupMSR`/`SetupHID`/`SetupBAT` exactly as `CBoot::EmulatedBS2_GC` calls them — no
+duplicated register-setup logic, no title-specific values. This is title-neutral: it is the same
+GameCube-standard configuration every retail disc's real BS2/IPL establishes, not a GMSE01-specific
+constant. It does not implement disc/apploader emulation (`RunApploader`/`EmulatedBS2_GC` remain
+disc/volume-shaped and out of scope for a raw in-memory image boot); it only exposes the
+register-setup half of that HLE, which is exactly what a raw DOL boot is missing.
+
+Proven by `GcnPortRuntimeTest.BootAuthenticatedImageAppliesGameCubeOsInitRegisters` (asserts the
+exact MSR/BAT values land) and `GcnPortRuntimeTest.BootAuthenticatedImageDefaultsToNoGameCubeOsInit`
+(asserts the flag's default `false` leaves every existing caller's real-mode boot unchanged), both
+added to the required regression inventory in `tools/gcnport_tools/dolphin_tests.py` alongside the
+other previously-unlisted `GcnPortRuntime` tests (`PublicAdapterBootExecuteOriginalAndTypedFallback`,
+`HookCallsOriginalSynchronouslyThenResumesNativeWork`, `ClassifyFallbackReasonMatchesStaticOpcodeTables`
+existed and passed but were not part of the enforced gate before this change).
+
+A real GameCube DOL's own linked code does not need a caller to also seed a stack pointer: its own
+`__start`/`__init_registers` prologue loads `r1`/`r2`/`r13` from the DOL's own linked
+`_stack_addr`/`_SDA2_BASE_`/`_SDA_BASE_` immediates before any memory access (evidenced in
+`decomp/sms`'s recovered `src/dolphin/os/__start.c` for the Sunbright consumer). A caller manually
+guessing a stack pointer address is therefore unnecessary once this OS-init flag is set.
