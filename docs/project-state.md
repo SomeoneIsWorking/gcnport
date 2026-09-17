@@ -8,11 +8,12 @@ native/dynarec ports without retaining the offline product.
 
 ## Current focus
 
-S003's one-block executor, typed fallback, hooks, and invalidation are now implemented and tested
-(revision `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`; `tools/check_dolphin_contract.py` reports
-0/11 operations absent, down from 6/11). Current focus is the one remaining contract gap — a
-synchronous native → original → native call continuation after the guest body returns, which the
-existing tail-only hook guard does not cover — then a real `GMSE01` boot attempt from Sunbright.
+S003's one-block executor, typed fallback, hooks, invalidation, and the synchronous
+native → original → native call continuation are now all implemented and tested (Dolphin fork
+revision `8296bbe`, based on `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`;
+`tools/check_dolphin_contract.py` reports 0/12 operations absent). The remaining contract-adjacent
+work is a real `GMSE01` boot attempt from Sunbright through this public adapter, plus Android
+qualification (S006).
 
 ## Capability inventory
 
@@ -20,8 +21,8 @@ existing tail-only hook guard does not cover — then a real `GMSE01` boot attem
 | --- | --- | --- | --- | --- |
 | S001 | JIT-default execution policy and bounded typed fallback accounting | verified | focused execution-session tests | G001 |
 | S002 | Authenticated image/module-scoped hook registry and one-shot original tickets | verified | focused hook/original tests | G002 |
-| S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | partial | pinned fork implements the instance session, public one-block adapter API, typed fallback, hook guards, invalidation, and block/hook counters; 0/11 contract symbols absent, but synchronous native->original->native continuation is still not implemented | G001, G002, G003 |
-| S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | partial | public `RuntimeSession`/`ExecuteJitBlock` adapter proves cold/cache-hit/hook/original-ticket/typed-fallback/invalidation execution from outside Dolphin's own test target; exact `GMSE01` boot and per-instruction retirement counts remain missing | G001, G003 |
+| S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | verified | pinned fork implements the instance session, public one-block adapter API, typed fallback, hook guards, invalidation, block/hook counters, and `CallOriginalSynchronously`; 0/12 contract symbols absent | G001, G002, G003 |
+| S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | partial | public `RuntimeSession`/`ExecuteJitBlock` adapter proves cold/cache-hit/hook/original-ticket/synchronous-original-call/typed-fallback/invalidation execution from outside Dolphin's own test target; exact `GMSE01` boot and per-instruction retirement counts remain missing | G001, G003 |
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
@@ -53,37 +54,45 @@ machine alone does not prove that backend property.
 
 ### S003 — Dolphin embedding contract
 
-Issue 001 remains open pending the continuation gap below. Pinned fork revision
-`5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd` includes an instance-owned
-`PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
-generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, typed cold/cache/
-hook/original-entry counters, and (new) a public `BootAuthenticatedImage`/`ShutdownBootedImage`,
-`ExecuteJitBlock`, `ExecuteRefusedBlock`, `ExecuteDiagnosticInterpreterBlock`,
+Fork revision `8296bbe` (built on `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`) includes an
+instance-owned `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection,
+Jit64 and JitArm64 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation,
+typed cold/cache/hook/original-entry counters, a public `BootAuthenticatedImage`/
+`ShutdownBootedImage`, `ExecuteJitBlock`, `ExecuteRefusedBlock`, `ExecuteDiagnosticInterpreterBlock`,
 `InstallNativeHook`/`RemoveNativeHook`, `ExecuteOriginalOnce`, and `InvalidateGuestCode` surface a
-consumer outside Dolphin's own gtest can call, plus `JitRefusalReason`-typed fallback classification
-replacing the untyped `FallBackToInterpreter(inst)` call. `tools/check_dolphin_contract.py` now
-reports 0 of 11 operations absent (down from 6).
+consumer outside Dolphin's own gtest can call, `JitRefusalReason`-typed fallback classification
+replacing the untyped `FallBackToInterpreter(inst)` call, and (new) `CallOriginalSynchronously`, a
+synchronous native → original → native call continuation callable from inside a `NativeHook`
+callback. `tools/check_dolphin_contract.py` now reports 0 of 12 operations absent (was 11, then 6).
 
-Gap: a synchronous native → original → native continuation after the guest body returns is still
-missing — the current guard scheme only covers a tail replacement (a hook that never resumes native
-code after the guest call). This is the one remaining item before Sunbright can attempt the
-`J3DShape::draw` discriminator through this adapter.
+`CallOriginalSynchronously` closes the last contract gap: `ExecuteOriginalOnce`/
+`HookAction::RunOriginalOnce` only ever covered a tail replacement (the hook redirects execution and
+never resumes native code after the guest call). The new operation runs the guest body at the hook's
+own address through Dolphin's plain interpreter (safe to call reentrantly from inside a hook callback
+because it never touches the JIT dispatcher's own call stack) until it returns to the live link
+register or a caller-supplied instruction bound is exceeded (a hard fault, not a silent truncation),
+then hands control back to the SAME callback invocation with PC/NPC restored so the callback keeps
+deciding the final `HookResult`. This is the "superCall" pattern Sunbright's own architecture
+requires for the `J3DShape::draw` discriminator: native work, call through to the original, more
+native work, one decision.
 
 ### S004 — x86_64 execution
 
-Partial capability: `GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation` and (new)
-`GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback` run a redistributable PPC program
+Partial capability: `GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation`,
+`GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback`, and (new)
+`GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork` run redistributable PPC programs
 through Dolphin's ordinary JIT64 loop via the public adapter API. Together they prove authenticated
 boot (and rejection of an unauthenticated or duplicate boot), cold compilation, cache/direct-link
 entries, hook-triggered invalidation and recompilation, one-shot original-ticket consumption and
-re-arming, explicit refused-block and diagnostic-interpreter entry points, and typed fallback
+re-arming, a synchronous native → original → native call continuation (asserted by observing the
+guest body's own side effect land strictly between two halves of native work in the same hook
+invocation), explicit refused-block and diagnostic-interpreter entry points, and typed fallback
 counters — all called through the same public facade a title consumes, not just Dolphin's internal
-test target. All 1,362 Dolphin unit tests pass in the Clang/Ninja evidence build (up from 1,344; new
-tests came from the folded-in Windows-portability batch, not from this API).
+test target. All 1,363 Dolphin unit tests pass in the Clang/Ninja evidence build (up from 1,362; the
+one new test is the synchronous-call scenario above).
 
-Gap: exact `GMSE01` boot (this test uses only a small synthetic in-memory image), per-instruction
-retirement counts, publication-failure injection, and the synchronous original-call continuation
-remain missing.
+Gap: exact `GMSE01` boot (these tests use only small synthetic in-memory images), per-instruction
+retirement counts, and publication-failure injection remain missing.
 
 ### S005 — Apple Silicon execution
 
