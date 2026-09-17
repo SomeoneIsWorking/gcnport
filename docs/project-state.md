@@ -22,7 +22,7 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | Linux x64/arm64 and macOS x64/arm64 pass in run 33893139587; Windows passed accelerated AES compilation in run 33960614709, then exposed incomplete rename-structure initialization and awaits the corrected fork | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 17 tests on POSIX x64, 16 on Windows x64, and 14 on POSIX arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
 
 ## Capability details
 
@@ -102,8 +102,10 @@ reads. The maintained fork is a submodule rather than copied first-party source.
 Partial capability: `.github/workflows/hosted-verification.yml` checks out full recursive history
 with immutable action revisions and calls the same `tools/verify.py --runtime` entry point on native
 Linux x64/arm64, Windows x64, and macOS x64/arm64 runners. The verifier rejects a runner identity
-mismatch, checks the selected CMake compiler family, asserts that the exact synthetic runtime test is
-present, and requires exactly one non-skipped pass.
+mismatch and checks the selected CMake compiler family. The host-specific regression owner requires
+17 tests on Linux/macOS x64, 16 on Windows x64, and 14 on Linux/macOS arm64, including the shipping-JIT
+discriminator on every host. Discovery must contain each required test exactly once; execution must
+report the exact started/completed test inventory and pass count, with no failures or skipped tests.
 
 [Run 33893139587](https://github.com/SomeoneIsWorking/gcnport/actions/runs/33893139587)
 passed both Linux architectures and both macOS architectures. Windows failed while compiling the
@@ -141,5 +143,26 @@ qualification remains unsupported pending a passing hosted runtime gate.
 
 The canonical verifier passes Ninja `-k 0` through its shared build owner so independent compiler
 failures are collected in one build attempt. A nonzero build still propagates immediately before
-test discovery, test execution, or installation. Four command-orchestration controls cover the
-successful and failed first-party and Dolphin-runtime paths; this does not change launcher behavior.
+test discovery, test execution, or installation. Five command-orchestration controls cover the
+successful and failed first-party and Dolphin-runtime paths and absent required discovery. Seven
+inventory/report controls exercise supported and unsupported hosts, absent or duplicate discovery,
+incorrect execution/counts, failures, and skipped tests. This does not change launcher behavior.
+
+Current local evidence: the uncommitted parent and Dolphin portability batch based on child
+`818ef9de938b3672880f5ff1468729fdaf643679` passes
+`CMAKE_BUILD_PARALLEL_LEVEL=2 uv run --frozen python tools/verify.py --runtime --expected-os linux --expected-arch x64`
+with Clang 22.1.8 after exact recursive dependency provisioning. The non-Qt Ninja build completes
+all 1,300 steps, all 17 required Dolphin regressions pass, and the parent passes 12 Python tests,
+3 CTest tests, installation, formatting, and lint checks. The full local log is
+`scratch/logs/dolphin-combined-gate.log`. An unchanged
+`cmake --build build/dolphin-runtime --target tests --parallel 2 -- -k 0` performs zero compilations
+or links; its existing SCM metadata command still emits `fatal: bad revision '^master'` because
+the fork uses `main` (`scratch/logs/dolphin-incremental.log`). Existing Dolphin/dependency compiler
+warnings remain visible; this is not a whole-Dolphin warning-clean claim.
+
+Landing remains blocked on compiling and linting the touched
+`Source/Core/DolphinQt/Debugger/NetworkWidget.cpp` against real Qt headers: the local Fedora host
+requires the user to install `qt6-qtbase-devel`. That translation unit is source-reviewed and
+formatted only. Both parent and child batches remain uncommitted, with the child pin unchanged;
+this dirty-tree Linux evidence does not establish a published revision, hosted Windows success,
+ARM64 qualification of these changes, or gameplay conformance.

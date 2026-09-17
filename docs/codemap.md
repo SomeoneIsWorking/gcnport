@@ -24,6 +24,7 @@ title composition
 | Dolphin backend | Boot/runtime ownership, JIT observation, hooks, original calls, invalidation | Maintained fork `Source/Core/Core/PowerPC/GcnPortRuntime.*` plus future adapter source | `PowerPC::GcnPort::RuntimeSession` | `docs/dolphin-embedding-contract.md` |
 | Dependency pin | Exact maintained-fork checkout identity | `dependencies.json`, `.gitmodules`, `cmake/DolphinDependency.cmake`, `extern/dolphin/` | `gcnport_require_dolphin_checkout` | `README.md` |
 | Verification tooling | Structure, dependency, CI-contract, build, test, format, lint, and native synthetic-JIT orchestration | `tools/`, `.github/workflows/hosted-verification.yml` | `tools/verify.py` | `README.md` |
+| Native regression inventory | Host/architecture-specific Dolphin tests, discovery, exact execution and passing-count validation | `tools/gcnport_tools/dolphin_tests.py` | `required_tests`, `validate_listing`, `validate_result` | `tools/test_dolphin_tests.py` |
 
 ## Placement index
 

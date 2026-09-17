@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .dolphin_tests import required_tests, validate_listing, validate_result
 from .host import HostTarget
 from .runner import build_ninja, capture, run
 
-TEST_NAME = "GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation"
 DOLPHIN_OPTIONS = (
     "-DENABLE_TESTS=ON",
     "-DENABLE_QT=OFF",
@@ -80,17 +80,11 @@ def verify_runtime(root: Path, host: HostTarget) -> None:
     suffix = "Tests/tests.exe" if host.operating_system == "windows" else "Tests/tests"
     executable = build / "Binaries" / suffix
     listing = capture([str(executable), "--gtest_list_tests"], root)
-    if (
-        "GcnPortRuntime." not in listing
-        or "ShippingJitCacheHookOriginalAndInvalidation" not in listing
-    ):
-        raise RuntimeError(f"shipping Dolphin JIT test is absent from {executable}")
-    output = capture([str(executable), f"--gtest_filter={TEST_NAME}"], root)
-    if "[  PASSED  ] 1 test." not in output or "[  SKIPPED ]" in output:
-        raise RuntimeError(
-            "shipping Dolphin JIT discriminator did not execute exactly one passing test"
-        )
+    expected = required_tests(host)
+    validate_listing(listing, expected)
+    output = capture([str(executable), f"--gtest_filter={':'.join(expected)}"], root)
+    validate_result(output, expected)
     print(
         "native Dolphin runtime verification passed: "
-        f"host={host.operating_system}/{host.architecture}, test={TEST_NAME}"
+        f"host={host.operating_system}/{host.architecture}, passed={len(expected)} required tests"
     )

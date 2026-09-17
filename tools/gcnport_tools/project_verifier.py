@@ -22,6 +22,7 @@ def verify_project(root: Path, host: HostTarget) -> None:
     for check in checks:
         run([python, check, "--selftest"], root)
     run([python, "tools/test_verifier_orchestration.py"], root)
+    run([python, "tools/test_dolphin_tests.py"], root)
     run([python, "tools/check_structure.py", "--root", str(root)], root)
     run([python, "tools/check_dependency.py", "--root", "extern/dolphin"], root)
     run([python, "tools/check_dolphin_contract.py", "--root", "extern/dolphin"], root)

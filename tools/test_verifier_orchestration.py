@@ -8,9 +8,11 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from gcnport_tools.dolphin_runtime import TEST_NAME, verify_runtime
+from gcnport_tools.dolphin_runtime import verify_runtime
+from gcnport_tools.dolphin_tests import required_tests
 from gcnport_tools.host import HostTarget
 from gcnport_tools.project_verifier import verify_project
+from test_dolphin_tests import listing_for, result_for
 
 ROOT = Path(__file__).resolve().parents[1]
 HOST = HostTarget("windows", "x64", "clang-cl", "clang-cl", "Clang", "clang-format", "clang-tidy")
@@ -34,8 +36,8 @@ class VerificationBuildTests(unittest.TestCase):
             patch("gcnport_tools.dolphin_runtime.capture") as capture,
         ):
             capture.side_effect = [
-                "GcnPortRuntime.\n  ShippingJitCacheHookOriginalAndInvalidation\n",
-                "[  PASSED  ] 1 test.\n",
+                listing_for(required_tests(HOST)),
+                result_for(required_tests(HOST)),
             ]
             verify = verify_runtime if runtime else verify_project
             if failed:
@@ -49,7 +51,10 @@ class VerificationBuildTests(unittest.TestCase):
                 verify(ROOT, HOST)
                 if runtime:
                     self.assertEqual(capture.call_count, 2)
-                    self.assertIn(f"--gtest_filter={TEST_NAME}", capture.call_args.args[0])
+                    self.assertIn(
+                        f"--gtest_filter={':'.join(required_tests(HOST))}",
+                        capture.call_args.args[0],
+                    )
                 else:
                     self.assertTrue(any(command[0] == "ctest" for command in commands))
                     self.assertTrue(any("--install" in command for command in commands))
@@ -72,6 +77,18 @@ class VerificationBuildTests(unittest.TestCase):
 
     def test_runtime_build_failure_stops_test_discovery_and_execution(self) -> None:
         self.exercise(runtime=True, failed=True)
+
+    def test_runtime_missing_required_test_stops_before_execution(self) -> None:
+        with (
+            patch("gcnport_tools.dolphin_runtime.run"),
+            patch("gcnport_tools.dolphin_runtime.build_ninja"),
+            patch("gcnport_tools.dolphin_runtime._compiler_id", return_value="Clang"),
+            patch("gcnport_tools.dolphin_runtime.capture", return_value="") as capture,
+            self.assertRaisesRegex(RuntimeError, "discovery scanned 0"),
+        ):
+            verify_runtime(ROOT, HOST)
+        capture.assert_called_once()
+        self.assertIn("--gtest_list_tests", capture.call_args.args[0])
 
 
 if __name__ == "__main__":
