@@ -33,7 +33,12 @@ The pinned implementation emits a hook guard before every hooked operation in th
 block. `RunOriginalOnce` falls through that guard for only the current entry; a loop, recursive call,
 cache hit, or direct-linked entry reaches the guard again. This is sufficient for a tail replacement
 that does not resume native code after the guest body. A synchronous native → original → native call
-still needs an explicit continuation and remains missing.
+is now implemented as `RuntimeSession::CallOriginalSynchronously`: called from inside a `NativeHook`
+callback, it drives the plain interpreter at the hook's own address until the guest body returns to
+the live link register (or a caller-supplied instruction bound is exceeded, a hard fault), then hands
+control back to the same callback invocation with PC/NPC restored. It is reentrant-safe because it
+never touches the JIT dispatcher's own generated-code call stack, unlike a hypothetical recursive
+`ExecuteJitBlock` call from inside a hook.
 
 ## Required Dolphin owner
 
@@ -58,7 +63,8 @@ The public surface needs these semantic operations (the exact spelling is delibe
 | `ExecuteRefusedBlock` | Execute only the explicitly refused PC and no more than the supplied instruction bound, then return to JIT dispatch. |
 | `ExecuteDiagnosticInterpreterBlock` | Execute only through an explicit diagnostic session; never share the gameplay selector. |
 | `InstallNativeHook` | Make hook selection part of every entry path, including cache hits and block links, using the full image/generation/address key. |
-| `ExecuteOriginalOnce` / `RunOriginalOnce` | Consume one matching call and run the ordinary body once without making recursive, cache-hit, or linked entries bypass the hook. An unpublished block is required for dispatcher-only interception; an always-emitted per-operation guard may instead fall through only the current guard. Synchronous native continuation after the guest returns remains a separate required operation. |
+| `ExecuteOriginalOnce` / `RunOriginalOnce` | Consume one matching call and run the ordinary body once without making recursive, cache-hit, or linked entries bypass the hook. An unpublished block is required for dispatcher-only interception; an always-emitted per-operation guard may instead fall through only the current guard. |
+| `CallOriginalSynchronously` | Callable from inside a `NativeHook` callback: run the original guest body as a subroutine (via the plain interpreter, bounded and reentrant-safe) and return control to the SAME callback invocation once the guest body returns to its live link register, so the callback can do native work both before and after the call and make one final `HookResult` decision. |
 | `InvalidateGuestCode` | Revoke affected blocks and direct links for hook changes, executable writes, module changes, and restore events before execution resumes. |
 | `ExecutionCounters` | Report actual compiled blocks, cache-hit executions, total JIT block/instruction executions, invalidations, hook calls, originals, and runtime fallback blocks/instructions by reason. |
 
@@ -170,10 +176,21 @@ diagnostic-interpreter entry points, and their independent counters. Both this t
 `ShippingJitCacheHookOriginalAndInvalidation` scenario pass, and the full 1362-test Dolphin suite
 passes unchanged on Linux x86_64/Clang with `-DENABLE_QT=OFF`.
 
-Remaining gap, unchanged: a synchronous native → original → native call continuation after the guest
-body returns is still not implemented (the current guard scheme only covers a tail replacement, i.e.
-a hook that never resumes native code after the guest call). This does not yet attempt authenticated
-`GMSE01` disc boot — only a small in-memory redistributable test image — and does not implement or
-prove per-instruction retirement counts. Hosted verification is configured to execute JitArm64 on
-Apple Silicon macOS. Android remains unqualified and has no CI job until a real NDK/APK/device
-runtime boundary exists; macOS AArch64 evidence cannot substitute for it.
+**2026-09-18 continuation update**: `RuntimeSession::CallOriginalSynchronously` closes the last
+contract gap, at fork revision `8296bbe`. Called from inside a `NativeHook` callback, it interprets
+the guest body at the hook's own address until it returns to the live link register (or a
+caller-supplied instruction bound is exceeded, a hard fault), then hands control back to the SAME
+callback invocation with PC/NPC restored, leaving every other guest register/memory side effect real
+and observable. It is reentrant-safe because it drives the plain interpreter directly and never
+touches the JIT dispatcher's own generated-code call stack. Proven by
+`GcnPortRuntimeTest.HookCallsOriginalSynchronouslyThenResumesNativeWork`, which asserts the guest
+body's own side effect (an `addi`) landed strictly between two halves of native work performed by the
+same hook callback invocation, then resumes native code and only then returns a final `HookResult`.
+`tools/check_dolphin_contract.py` reports 0 of 12 operations absent. The full 1,363-test Dolphin
+suite (1,362 plus this new test) passes unchanged on Linux x86_64/Clang with `-DENABLE_QT=OFF`.
+
+Remaining gap: this does not yet attempt authenticated `GMSE01` disc boot — only small in-memory
+redistributable test images — and does not implement or prove per-instruction retirement counts.
+Hosted verification is configured to execute JitArm64 on Apple Silicon macOS. Android remains
+unqualified and has no CI job until a real NDK/APK/device runtime boundary exists; macOS AArch64
+evidence cannot substitute for it.

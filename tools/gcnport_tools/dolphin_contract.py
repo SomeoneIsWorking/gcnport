@@ -53,6 +53,11 @@ REQUIREMENTS = (
     ),
     Requirement(BRIDGE_HEADER, "InstallNativeHook", "guest-address hook registration"),
     Requirement(BRIDGE_HEADER, "ExecuteOriginalOnce", "unpublished one-shot original execution"),
+    Requirement(
+        BRIDGE_HEADER,
+        "CallOriginalSynchronously",
+        "synchronous native->original->native call continuation from inside a hook callback",
+    ),
     Requirement(BRIDGE_HEADER, "InvalidateGuestCode", "hook and executable-image invalidation"),
     Requirement(BRIDGE_HEADER, "ExecutionCounters", "compiled/executed/fallback denominators"),
     Requirement(BRIDGE_SOURCE, "FallBackToInterpreter", "runtime fallback reason instrumentation"),
