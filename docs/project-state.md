@@ -26,7 +26,7 @@ qualification (S006).
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 17 tests on POSIX x64, 16 on Windows x64, and 14 on POSIX arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 22 tests on POSIX x64, 21 on Windows x64, and 19 on POSIX arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
 
 ## Capability details
 
@@ -123,7 +123,7 @@ Partial capability: `.github/workflows/hosted-verification.yml` checks out full 
 with immutable action revisions and calls the same `tools/verify.py --runtime` entry point on native
 Linux x64/arm64, Windows x64, and macOS x64/arm64 runners. The verifier rejects a runner identity
 mismatch and checks the selected CMake compiler family. The host-specific regression owner requires
-17 tests on Linux/macOS x64, 16 on Windows x64, and 14 on Linux/macOS arm64, including the shipping-JIT
+22 tests on Linux/macOS x64, 21 on Windows x64, and 19 on Linux/macOS arm64, including the shipping-JIT
 discriminator on every host. Discovery must contain each required test exactly once; execution must
 report the exact started/completed test inventory and pass count, with no failures or skipped tests.
 
