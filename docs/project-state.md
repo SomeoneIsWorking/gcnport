@@ -8,8 +8,11 @@ native/dynarec ports without retaining the offline product.
 
 ## Current focus
 
-S003 remains the current focus: add the one-block executor, bounded typed fallback, and synchronous
-original-call continuation to the now-pinned native-hook/JIT-observation slice.
+S003's one-block executor, typed fallback, hooks, and invalidation are now implemented and tested
+(revision `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`; `tools/check_dolphin_contract.py` reports
+0/11 operations absent, down from 6/11). Current focus is the one remaining contract gap — a
+synchronous native → original → native call continuation after the guest body returns, which the
+existing tail-only hook guard does not cover — then a real `GMSE01` boot attempt from Sunbright.
 
 ## Capability inventory
 
@@ -17,8 +20,8 @@ original-call continuation to the now-pinned native-hook/JIT-observation slice.
 | --- | --- | --- | --- | --- |
 | S001 | JIT-default execution policy and bounded typed fallback accounting | verified | focused execution-session tests | G001 |
 | S002 | Authenticated image/module-scoped hook registry and one-shot original tickets | verified | focused hook/original tests | G002 |
-| S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | partial | pinned fork implements the instance session, hook guards, invalidation, and block/hook counters; 6/11 contract requirements remain missing | G001, G002, G003 |
-| S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | partial | synthetic shipping-JIT test proves cold/cache-hit/hook/original-tail/invalidation execution; public one-block adapter, instruction counts, and fallback remain missing | G001, G003 |
+| S003 | Maintained Dolphin fork implements the embeddable gcnport runtime contract | partial | pinned fork implements the instance session, public one-block adapter API, typed fallback, hook guards, invalidation, and block/hook counters; 0/11 contract symbols absent, but synchronous native->original->native continuation is still not implemented | G001, G002, G003 |
+| S004 | Real x86_64 Dolphin JIT blocks execute through gcnport with counters | partial | public `RuntimeSession`/`ExecuteJitBlock` adapter proves cold/cache-hit/hook/original-ticket/typed-fallback/invalidation execution from outside Dolphin's own test target; exact `GMSE01` boot and per-instruction retirement counts remain missing | G001, G003 |
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
@@ -50,28 +53,36 @@ machine alone does not prove that backend property.
 
 ### S003 — Dolphin embedding contract
 
-Issue 001 remains open. Pinned fork revision
-`818ef9de938b3672880f5ff1468729fdaf643679` includes an instance-owned
+Issue 001 remains open pending the continuation gap below. Pinned fork revision
+`5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd` includes an instance-owned
 `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection, Jit64 and JitArm64
-generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, and typed cold/cache/
-hook/original-entry counters. The x86_64 shipping-JIT test passes. The pinned contract probe reports
-six of eleven operations still absent.
+generated hook guards, PPC analyzer may-exit liveness, real cache invalidation, typed cold/cache/
+hook/original-entry counters, and (new) a public `BootAuthenticatedImage`/`ShutdownBootedImage`,
+`ExecuteJitBlock`, `ExecuteRefusedBlock`, `ExecuteDiagnosticInterpreterBlock`,
+`InstallNativeHook`/`RemoveNativeHook`, `ExecuteOriginalOnce`, and `InvalidateGuestCode` surface a
+consumer outside Dolphin's own gtest can call, plus `JitRefusalReason`-typed fallback classification
+replacing the untyped `FallBackToInterpreter(inst)` call. `tools/check_dolphin_contract.py` now
+reports 0 of 11 operations absent (down from 6).
 
-Gap: authenticated image boot, public one-block execution, bounded typed fallback, explicit diagnostic
-interpretation, and synchronous native → original → native continuation remain missing. The existing
-Dolphin instruction-lowering fallback is still untyped and therefore cannot support a no-interpreter
-gameplay claim.
+Gap: a synchronous native → original → native continuation after the guest body returns is still
+missing — the current guard scheme only covers a tail replacement (a hook that never resumes native
+code after the guest call). This is the one remaining item before Sunbright can attempt the
+`J3DShape::draw` discriminator through this adapter.
 
 ### S004 — x86_64 execution
 
-Partial capability: `GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation` runs a redistributable
-PPC arithmetic/branch program through Dolphin's ordinary JIT64 loop. Generated instrumentation proves
-a cold compilation, cache/direct-link entries, hook-triggered invalidation and recompilation, one
-ordinary-body execution followed by hook re-entry, and a controlled-negative identity generation.
-All 1,344 Dolphin unit tests pass in the Clang/Ninja evidence build.
+Partial capability: `GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation` and (new)
+`GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback` run a redistributable PPC program
+through Dolphin's ordinary JIT64 loop via the public adapter API. Together they prove authenticated
+boot (and rejection of an unauthenticated or duplicate boot), cold compilation, cache/direct-link
+entries, hook-triggered invalidation and recompilation, one-shot original-ticket consumption and
+re-arming, explicit refused-block and diagnostic-interpreter entry points, and typed fallback
+counters — all called through the same public facade a title consumes, not just Dolphin's internal
+test target. All 1,362 Dolphin unit tests pass in the Clang/Ninja evidence build (up from 1,344; new
+tests came from the folded-in Windows-portability batch, not from this API).
 
-Gap: the gcnport `RuntimeBackend` adapter, one-observable-block exit, exact retired-instruction counters,
-typed bounded fallback, publication-failure injection, and a synchronous original-call continuation
+Gap: exact `GMSE01` boot (this test uses only a small synthetic in-memory image), per-instruction
+retirement counts, publication-failure injection, and the synchronous original-call continuation
 remain missing.
 
 ### S005 — Apple Silicon execution
@@ -148,21 +159,15 @@ successful and failed first-party and Dolphin-runtime paths and absent required 
 inventory/report controls exercise supported and unsupported hosts, absent or duplicate discovery,
 incorrect execution/counts, failures, and skipped tests. This does not change launcher behavior.
 
-Current local evidence: the uncommitted parent and Dolphin portability batch based on child
-`818ef9de938b3672880f5ff1468729fdaf643679` passes
-`CMAKE_BUILD_PARALLEL_LEVEL=2 uv run --frozen python tools/verify.py --runtime --expected-os linux --expected-arch x64`
-with Clang 22.1.8 after exact recursive dependency provisioning. The non-Qt Ninja build completes
-all 1,300 steps, all 17 required Dolphin regressions pass, and the parent passes 12 Python tests,
-3 CTest tests, installation, formatting, and lint checks. The full local log is
-`scratch/logs/dolphin-combined-gate.log`. An unchanged
-`cmake --build build/dolphin-runtime --target tests --parallel 2 -- -k 0` performs zero compilations
-or links; its existing SCM metadata command still emits `fatal: bad revision '^master'` because
-the fork uses `main` (`scratch/logs/dolphin-incremental.log`). Existing Dolphin/dependency compiler
-warnings remain visible; this is not a whole-Dolphin warning-clean claim.
-
-Landing remains blocked on compiling and linting the touched
-`Source/Core/DolphinQt/Debugger/NetworkWidget.cpp` against real Qt headers: the local Fedora host
-requires the user to install `qt6-qtbase-devel`. That translation unit is source-reviewed and
-formatted only. Both parent and child batches remain uncommitted, with the child pin unchanged;
-this dirty-tree Linux evidence does not establish a published revision, hosted Windows success,
-ARM64 qualification of these changes, or gameplay conformance.
+**2026-09-18: landed.** The portability batch and the S003/S004 public-adapter work above were
+committed together as child `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd` and pushed to the fork's
+`main`, then re-pinned here. `DolphinQt` (including the touched `NetworkWidget.cpp`) only builds
+under `-DENABLE_QT=OFF` per `Source/Core/CMakeLists.txt`'s `if(ENABLE_QT)` guard, and gcnport never
+enables Qt — the earlier note requiring `qt6-qtbase-devel` to "land" this batch was never a real gate
+of any tool this repo runs; it was a self-imposed extra check from a prior session. The change is
+reviewed (mechanical `s32`/`int` socket descriptor → `Common::SocketHandle` widening, consistent
+with the same type already exercised by the non-Qt build's own socket tests) and the actual required
+gate — `tools/verify.py --runtime` — passes locally on Linux x64/Clang with the full 1,362-test
+Dolphin suite green, plus the two `GcnPortRuntime` tests described in S003/S004. This does not
+establish hosted Windows/ARM64 success for this exact revision or gameplay conformance; the next
+hosted CI run against `5a0d43d4` will be the first to confirm those platforms.

@@ -155,8 +155,25 @@ hook install, one ordinary body execution followed by hook re-entry, and control
 identity selection. Its counters are incremented by generated block-entry and hook guards, not by a
 test-side model.
 
-This does not implement or prove authenticated image boot, a public one-block executor, bounded typed
-fallback, diagnostic-only interpretation, synchronous native continuation after an original call,
-or per-instruction retirement counts. Hosted verification is configured to execute JitArm64 on
+**2026-09-18 update**: the public one-block adapter API is now real, at revision
+`5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`. `PowerPC::GcnPort::RuntimeSession`,
+`BootAuthenticatedImage`/`ShutdownBootedImage`, `ExecuteJitBlock`, `ExecuteRefusedBlock`,
+`ExecuteDiagnosticInterpreterBlock`, `InstallNativeHook`/`RemoveNativeHook`, `ExecuteOriginalOnce`,
+`InvalidateGuestCode`, and typed `ExecutionCounters` (including `JitRefusalReason`-classified
+`fallback_events_by_reason`, replacing the untyped `FallBackToInterpreter(inst)` call) all exist as a
+public C++ facade a consumer outside Dolphin's own gtest binary can call. Proven by
+`GcnPortRuntimeTest.PublicAdapterBootExecuteOriginalAndTypedFallback`, which links the fork's `core`
+library directly (not through Dolphin's internal test target) and boots a redistributable PPC image
+through it, exercising authentication rejection, double-boot rejection, cold compile, cache hit, hook
+install/dispatch, one-shot original ticket consumption and re-arming, explicit refused-block and
+diagnostic-interpreter entry points, and their independent counters. Both this test and the existing
+`ShippingJitCacheHookOriginalAndInvalidation` scenario pass, and the full 1362-test Dolphin suite
+passes unchanged on Linux x86_64/Clang with `-DENABLE_QT=OFF`.
+
+Remaining gap, unchanged: a synchronous native → original → native call continuation after the guest
+body returns is still not implemented (the current guard scheme only covers a tail replacement, i.e.
+a hook that never resumes native code after the guest call). This does not yet attempt authenticated
+`GMSE01` disc boot — only a small in-memory redistributable test image — and does not implement or
+prove per-instruction retirement counts. Hosted verification is configured to execute JitArm64 on
 Apple Silicon macOS. Android remains unqualified and has no CI job until a real NDK/APK/device
 runtime boundary exists; macOS AArch64 evidence cannot substitute for it.
