@@ -16,6 +16,7 @@ COMMON_TESTS = (
     "GcnPortRuntime.HardwareInitBootOwnsHeadlessControllerInterface",
     "GcnPortRuntime.ExecuteJitBlocksChainsBlocksAndRestoresTheOneBlockCap",
     "GcnPortRuntime.DiscImageRefusalsNeverBootSilentlyWithoutTheDisc",
+    "GcnPortRuntime.MediaInitOwnsHeadlessVideoAndDspOrRefuses",
     "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
     "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",
     "GcnPortRuntime.ClassifyFallbackReasonMatchesStaticOpcodeTables",
