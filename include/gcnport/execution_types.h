@@ -22,6 +22,9 @@ enum class JitRefusalReason : std::uint8_t {
   UnsafeHostExecution,
   PrivilegedInstruction,
 };
+// Mirrors PowerPC::GcnPort::JitRefusalReason, which is where a refusal is classified and named.
+// This header is deliberately free of Dolphin's, so the mirror is by hand: keep the members in the
+// same order, and keep to_string below agreeing with PowerPC::GcnPort::ToString.
 
 constexpr std::size_t kJitRefusalReasonCount = 4;
 
