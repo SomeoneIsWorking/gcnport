@@ -231,3 +231,89 @@ A real GameCube DOL's own linked code does not need a caller to also seed a stac
 `_stack_addr`/`_SDA2_BASE_`/`_SDA_BASE_` immediates before any memory access (evidenced in
 `decomp/sms`'s recovered `src/dolphin/os/__start.c` for the Sunbright consumer). A caller manually
 guessing a stack pointer address is therefore unnecessary once this OS-init flag is set.
+
+## GameCube hardware bring-up (MMIO handler table)
+
+`BootAuthenticatedImage` never called Dolphin's `HW::Init(system, sram)`, so no `MMIO::Mapping`
+handler table existed for any GameCube hardware register (VideoInterface, ProcessorInterface,
+SerialInterface, ExpansionInterface, AudioInterface, MemoryInterface, DSP, DVDInterface,
+CommandProcessor, PixelEngine). A real title's own `__init_hardware`-equivalent code reads or writes
+one of these registers very early in boot (e.g. GameCube `ProcessorInterface` at physical
+`0x0C003000`); without a registered handler that access calls through an uninitialized function
+pointer and crashes — first observed booting exact `GMSE01` through Sunbright's own
+`tools/gcnport_boot/gmse01_boot.cpp` as a SIGSEGV inside `MMIO::WriteHandler<u32>::Write`
+(`Source/Core/Core/HW/MMIO.cpp`) writing to physical `0x0C003004` (`PI_INTERRUPT_MASK`). This is not
+a JIT correctness bug; it is missing hardware-owner bring-up, exactly like the OS-init/BAT gap above.
+
+Tracing `HW::Init` (`Source/Core/Core/HW/HW.cpp`) end to end: it initializes each device manager's
+own state, then calls `MemoryManager::InitMMIO(system)` at the end, which is the single call that
+actually builds `m_mmio_mapping` and registers every device's MMIO range
+(`ProcessorInterfaceManager::RegisterMMIO` at physical base `0x0C003000` is the exact handler for
+the observed crash). Comparing this against Dolphin's own `EmuThread` (`Source/Core/Core/Core.cpp`)
+shows `HW::Init` does NOT construct a host video backend, select DSP HLE/LLE threading, or open a
+real input device: `g_video_backend->Initialize`, `DSPEmulator::Initialize`, and the
+`ControllerInterface`/`Pad::Initialize` wiring are all separate calls `EmuThread` makes around
+`HW::Init`, none of which `BootAuthenticatedImage` needs to call — `HW::Init` alone is a safe,
+correctly scoped subset for a bare adapter boot with no rendering, audio, or input backend of its
+own.
+
+Two exceptions required explicit scoping, found empirically (both crashed a first attempt at calling
+`HW::Init` directly and were traced to their exact cause rather than special-cased around):
+
+- `AudioInterfaceManager::Init` (called from inside `HW::Init`) unconditionally dereferences
+  `system.GetSoundStream()` via `SetAISSampleRate`/`SetAIDSampleRate`. No `SoundStream` object exists
+  until `AudioCommon::InitSoundStream(system)` runs (a separate call Dolphin's `EmuThread` makes
+  *before* `HW::Init`, not part of it), so `BootAuthenticatedImage` must call it too, immediately
+  before `HW::Init`. Left at its Config-selected default, this would open a real host audio backend
+  (e.g. Cubeb) — out of scope for an execution-only adapter — so `apply_gamecube_hardware_init` forces
+  `Config::MAIN_AUDIO_BACKEND` to Dolphin's own maintained "No Audio Output" (`NullSound`) backend
+  first, which satisfies the `SoundStream`/`Mixer` object contract without opening any device.
+- `ExpansionInterfaceManager::Init`/`SerialInterfaceManager::Init` default to a `MemoryCardFolder`
+  EXI device on slot A (touches host disk under a save path derived from the current game ID, which a
+  raw in-memory-image boot has no way to supply) and a live GameCube-controller SI device on channel
+  0 (polls `Pad::GetStatus`, which indexes a `ControllerInterface` this adapter never initializes,
+  a null/out-of-bounds access waiting to happen the first time a title polls its pad). Both are
+  forced to their explicit "nothing attached" states (`EXIDeviceType::None`, `SIDEVICE_NONE`) before
+  `HW::Init` runs — ordinary, real hardware states (a console can boot with an empty controller port
+  and no memory card inserted), not a fabricated shortcut. A title consumer that wants persistent
+  input/storage devices attaches them afterward through this same Config surface; `gcnport` does not
+  own that policy.
+
+A third, unrelated mechanism surfaced while proving the fix: a GameCube hardware register has no
+fastmem-backed page (`MemoryManager::Init`'s `physical_regions` table maps only RAM/L1/fake-VMEM/
+EXRAM), so a JIT-generated fastmem load or store that targets one deliberately raises SIGSEGV to
+reach the safe MMU/MMIO path — this is Dolphin's own normal mechanism, not a bug. Dolphin's own
+`CpuThread` (`Core.cpp`) installs the handler for exactly this ("The JIT need to be able to intercept
+faults, both for fastmem and for the BLR optimization"); a bare adapter boot never runs that function,
+so `apply_gamecube_hardware_init` also calls `EMM::InstallExceptionHandler()` (guarded by
+`EMM::IsExceptionHandlerSupported()`), uninstalling it in `ShutdownBootedImage`/on the RAM-bounds
+failure path. Without it, an ordinary fastmem-optimized hardware-register access — even one whose
+handler is now correctly registered — crashes the process directly in JIT-generated code instead of
+reaching that handler.
+
+`BootAuthenticatedImage` gained a second, independent boot option, `apply_gamecube_hardware_init`
+(default `false`; orthogonal to `apply_gamecube_os_init`, real hardware bring-up rather than
+MSR/BAT/HID register values). When `true` it replaces this function's own minimal `Memory::Init`/
+`CoreTiming::Init`/`CPU::Init` calls with `HW::Init` itself — not both, since `HW::Init` performs its
+own `Memory::Init()` internally and a second call would reallocate (and leak) the physical memory
+arena — and pairs with `HW::Shutdown`/`AudioCommon::ShutdownSoundStream` in `ShutdownBootedImage` and
+on the RAM-bounds failure path.
+
+Proven by `GcnPortRuntimeTest.BootAuthenticatedImageAppliesGameCubeHardwareInitMmio`: a synthetic
+program (`lis`/`addi`/`lis`/`ori`/`stw`/`lwz`) stores a test value to, then reads it back from, the
+real `ProcessorInterface` `PI_INTERRUPT_MASK` register at physical/effective `0x0C003004` (boot stays
+in real addressing mode, `apply_gamecube_os_init` left at its default `false`, so the effective
+address used is also the physical address the MMIO table is registered under, independent of BAT
+setup). The negative control, `GcnPortRuntimeTest.BootAuthenticatedImageWithoutHardwareInitFaults-
+OnMmioAccess` (`EXPECT_DEATH`), proves the identical access crashes the process without the flag —
+the same class of fault this issue diagnosed in exact `GMSE01` — so the positive test is verified
+against a real falsified negative, not merely a working happy path. Both are part of the required
+regression inventory in `tools/gcnport_tools/dolphin_tests.py`. The full Dolphin suite (1,367 tests
+observed this session, +2 from these tests) passes unchanged in the Clang/Ninja evidence build on
+Linux x86_64.
+
+Remaining gap, intentionally out of scope for this adapter: real disc/apploader boot
+(`RunApploader`/`EmulatedBS2_GC`), DSP LLE/HLE thread startup (`DSPEmulator::Initialize`), and any
+real video/input backend remain separate, later adapters a title composes on top of this one when it
+needs them — this option only makes a raw in-memory image's early hardware-register bring-up match
+real GameCube behavior.

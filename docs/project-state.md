@@ -76,6 +76,36 @@ deciding the final `HookResult`. This is the "superCall" pattern Sunbright's own
 requires for the `J3DShape::draw` discriminator: native work, call through to the original, more
 native work, one decision.
 
+**2026-09-18 (hardware bring-up):** `BootAuthenticatedImage` gained a second boot option,
+`apply_gamecube_hardware_init` (default `false`, independent of `apply_gamecube_os_init`). When
+`true` it calls Dolphin's own maintained `HW::Init`/`HW::Shutdown` (`Source/Core/Core/HW/HW.cpp`)
+instead of this function's own minimal `Memory`/`CoreTiming`/`CPU` bring-up, which is what actually
+builds the `MMIO::Mapping` handler table (`MemoryManager::InitMMIO`, called at the end of
+`HW::Init`) every GameCube hardware register (VideoInterface, ProcessorInterface, SerialInterface,
+ExpansionInterface, AudioInterface, MemoryInterface, DSP, DVDInterface, CommandProcessor,
+PixelEngine) needs before a real title's own `__init_hardware`-equivalent code can touch it without
+crashing through an uninitialized handler. `HW::Init` on its own constructs no host video backend,
+DSP thread, or real input device (those are separate calls Dolphin's own `EmuThread` makes around
+`HW::Init`, none of which this function calls), but two of its device owners do have host side
+effects unsuitable for a bare adapter boot with no configured title/user directory:
+`AudioInterfaceManager::Init` unconditionally dereferences `system.GetSoundStream()` (so
+`AudioCommon::InitSoundStream` must run first) and would otherwise open the config-selected host
+audio backend, and `ExpansionInterfaceManager`/`SerialInterfaceManager::Init` default to a
+`MemoryCardFolder` device (host disk) and a live GameCube controller (an uninitialized host
+`ControllerInterface`). The new flag forces `SIDEVICE_NONE` on every SI channel, `EXIDeviceType::None`
+on both EXI memory card slots, and the `NullSound` ("No Audio Output") backend before calling
+`HW::Init` — three ordinary real hardware/software states, not a fabricated shortcut. A hardware
+register also has no fastmem-backed page, so a JIT-generated fastmem load/store that targets one
+deliberately raises SIGSEGV to reach the safe MMU/MMIO path; the flag also installs Dolphin's
+`EMM::InstallExceptionHandler` (guarded by `EMM::IsExceptionHandlerSupported()`), which a bare
+adapter boot never runs otherwise (only Dolphin's own `CpuThread` in `Core.cpp` installs it).
+Proven by `GcnPortRuntimeTest.BootAuthenticatedImageAppliesGameCubeHardwareInitMmio` (a synthetic
+program stores to and reads back the real GameCube `ProcessorInterface` `PI_INTERRUPT_MASK`
+register at physical/effective `0x0C003004` — the exact address and register a real `GMSE01` boot
+faulted on) and its negative control `GcnPortRuntimeTest.BootAuthenticatedImageWithoutHardwareInit-
+FaultsOnMmioAccess` (`EXPECT_DEATH`, proving the same access crashes the process without the flag,
+not merely that the flag's own path happens to work).
+
 ### S004 — x86_64 execution
 
 Partial capability: `GcnPortRuntime.ShippingJitCacheHookOriginalAndInvalidation`,
@@ -88,11 +118,15 @@ re-arming, a synchronous native → original → native call continuation (asser
 guest body's own side effect land strictly between two halves of native work in the same hook
 invocation), explicit refused-block and diagnostic-interpreter entry points, and typed fallback
 counters — all called through the same public facade a title consumes, not just Dolphin's internal
-test target. All 1,363 Dolphin unit tests pass in the Clang/Ninja evidence build (up from 1,362; the
-one new test is the synchronous-call scenario above).
+test target. All 1,367 Dolphin unit tests pass in the Clang/Ninja evidence build (re-verified this
+session; +2 from the hardware-init tests above,
+`BootAuthenticatedImageAppliesGameCubeHardwareInitMmio` and its `EXPECT_DEATH` negative control).
 
 Gap: exact `GMSE01` boot (these tests use only small synthetic in-memory images), per-instruction
-retirement counts, and publication-failure injection remain missing.
+retirement counts, and publication-failure injection remain missing. Sunbright's own
+`tools/gcnport_boot/gmse01_boot.cpp` consumes `apply_gamecube_hardware_init` against the real image
+outside this repository (gcnport never links the ROM); see that project's own issue 37 and
+project-state for the resulting block/instruction counts or next diagnosed blocker.
 
 ### S005 — Apple Silicon execution
 
