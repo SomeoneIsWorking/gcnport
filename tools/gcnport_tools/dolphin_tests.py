@@ -21,6 +21,7 @@ COMMON_TESTS = (
     "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
     "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",
     "GcnPortRuntime.ClassifyFallbackReasonMatchesStaticOpcodeTables",
+    "GcnPortRuntime.FallbackAccountingNamesItsSitesAndReportsItsOwnTruncation",
     "GcnPortRuntime.BootAuthenticatedImageAppliesGameCubeHardwareInitMmio",
     "GcnPortRuntime.BootAuthenticatedImageWithoutHardwareInitFaultsOnMmioAccess",
     "MsgHandlerTest.AssertForwardsZeroOneAndTwoFormatArguments",
