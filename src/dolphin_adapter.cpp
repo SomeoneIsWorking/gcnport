@@ -49,8 +49,10 @@ to_dolphin(const ExecutionIdentity &identity) noexcept {
 // nothing to keep alive between calls.
 class DolphinGuestContext final : public GuestContext {
 public:
-  DolphinGuestContext(Memory::MemoryManager &memory, PowerPC::PowerPCState &state) noexcept
-      : memory_(memory), state_(state) {}
+  DolphinGuestContext(Memory::MemoryManager &memory, PowerPC::PowerPCState &state,
+                      PowerPC::GcnPort::RuntimeSession &session,
+                      const PowerPC::GcnPort::HookKey &key) noexcept
+      : memory_(memory), state_(state), session_(session), key_(key) {}
 
   [[nodiscard]] GuestAddress program_counter() const noexcept override { return state_.pc; }
   void set_program_counter(GuestAddress value) noexcept override {
@@ -90,6 +92,16 @@ public:
     return true;
   }
 
+  // Delegates to the session, which is what actually knows how to run a guest body without
+  // re-entering the JIT's generated call stack. The key is the one this context was constructed
+  // for, so a hook cannot ask for a different function's body by mistake.
+  [[nodiscard]] InterpretedBlock call_original(std::uint32_t maximum_instruction_count) override {
+    const PowerPC::GcnPort::InterpretedBlockResult result =
+        session_.CallOriginalSynchronously(key_, maximum_instruction_count);
+    return InterpretedBlock{.guest_pc = result.guest_pc,
+                            .instruction_count = result.instruction_count};
+  }
+
 private:
   // Dolphin's register file is a plain array, so an out-of-range index would read or write
   // whatever follows it in PowerPCState. The interface is not noexcept, and a hook that lets this
@@ -105,6 +117,8 @@ private:
 
   Memory::MemoryManager &memory_;
   PowerPC::PowerPCState &state_;
+  PowerPC::GcnPort::RuntimeSession &session_;
+  const PowerPC::GcnPort::HookKey &key_;
 };
 
 } // namespace
@@ -123,10 +137,14 @@ PowerPC::GcnPort::JitRefusalReason to_dolphin(JitRefusalReason reason) noexcept 
 struct DolphinRuntimeAdapter::Binding {
   NativeHook hook;
   Core::System *system = nullptr;
+  PowerPC::GcnPort::RuntimeSession *session = nullptr;
+  // The key this binding was installed at, kept so GuestContext::call_original can name the body
+  // the hook is standing in front of without the hook having to repeat it.
+  PowerPC::GcnPort::HookKey key;
 
   static PowerPC::GcnPort::HookResult Invoke(void *context, PowerPC::PowerPCState &state) noexcept {
     auto *const binding = static_cast<Binding *>(context);
-    DolphinGuestContext guest(binding->system->GetMemory(), state);
+    DolphinGuestContext guest(binding->system->GetMemory(), state, *binding->session, binding->key);
     return to_dolphin(binding->hook(guest));
   }
 };
@@ -194,7 +212,8 @@ ExecutionIdentity DolphinRuntimeAdapter::identity() const {
 }
 
 void DolphinRuntimeAdapter::install_hook(HookKey key, NativeHook hook) {
-  auto binding = std::make_unique<Binding>(Binding{.hook = std::move(hook), .system = &system_});
+  auto binding = std::make_unique<Binding>(Binding{
+      .hook = std::move(hook), .system = &system_, .session = &session_, .key = to_dolphin(key)});
   Binding *const installed = binding.get();
   // Point the session at the new storage before dropping any storage it was previously pointing
   // at. Mutations happen at a stopped CPU safe point, so nothing dispatches in between either way,
@@ -214,5 +233,9 @@ bool DolphinRuntimeAdapter::remove_hook(const HookKey &key) {
 }
 
 std::size_t DolphinRuntimeAdapter::hook_count() const noexcept { return bindings_.size(); }
+
+bool DolphinRuntimeAdapter::arm_original_call(const HookKey &key) {
+  return session_.ExecuteOriginalOnce(to_dolphin(key));
+}
 
 } // namespace gcnport

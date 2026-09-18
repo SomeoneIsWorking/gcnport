@@ -69,6 +69,19 @@ public:
   [[nodiscard]] bool remove_hook(const HookKey &key);
   [[nodiscard]] std::size_t hook_count() const noexcept;
 
+  // Arms a one-shot ticket so the NEXT dispatch reaching `key.address` runs the ordinary translated
+  // body instead of the installed hook, without the hook callback being entered at all. This is the
+  // other half of the original-call surface: GuestContext::call_original runs the body as a
+  // subroutine and gives control back inside the same callback, whereas a ticket hands the body a
+  // whole dispatch of its own. Use a ticket when the native code wants the original to run under
+  // the JIT with the block granularity the dispatcher already provides; use call_original when it
+  // needs the result before deciding what to return.
+  //
+  // Returns false when the key is invalid, carries another identity, or names an address with no
+  // installed hook to suppress -- all three mean the caller would otherwise believe it had
+  // suppressed something it had not.
+  [[nodiscard]] bool arm_original_call(const HookKey &key);
+
 private:
   struct Binding;
 
