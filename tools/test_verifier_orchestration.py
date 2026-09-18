@@ -59,12 +59,24 @@ class VerificationBuildTests(unittest.TestCase):
                     self.assertTrue(any(command[0] == "ctest" for command in commands))
                     self.assertTrue(any("--install" in command for command in commands))
 
+        # The runtime gate builds twice: Dolphin standalone for its own gtest discriminator, then
+        # gcnport configured with the Dolphin adapter for the adapter test. A build that quietly
+        # stopped happening is the failure this count exists to catch, so it is pinned rather than
+        # bounded -- and on the failure path the first build raises, so only one ever runs.
+        expected_builds = 2 if runtime and not failed else 1
         builds = [command for command in commands if command[:2] == ["cmake", "--build"]]
-        self.assertEqual(len(builds), 1)
-        self.assertEqual(builds[0][-3:], ["--", "-k", "0"])
+        self.assertEqual(len(builds), expected_builds)
+        for build in builds:
+            self.assertEqual(build[-3:], ["--", "-k", "0"])
         configurations = [command for command in commands if command[:2] == ["cmake", "-S"]]
-        self.assertEqual(len(configurations), 1)
-        self.assertIn("Ninja", configurations[0])
+        self.assertEqual(len(configurations), expected_builds)
+        for configuration in configurations:
+            self.assertIn("Ninja", configuration)
+        if runtime and not failed:
+            self.assertIn("-DGCPORT_BUILD_DOLPHIN_ADAPTER=ON", configurations[1])
+            self.assertTrue(
+                any(command[0] == "ctest" and "dolphin_adapter" in command for command in commands)
+            )
 
     def test_project_success_continues_after_collecting_build(self) -> None:
         self.exercise(runtime=False, failed=False)

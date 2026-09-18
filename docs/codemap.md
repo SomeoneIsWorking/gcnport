@@ -21,8 +21,9 @@ title composition
 | Hook selection | Authenticated image/module/address registration and invalidation | `include/gcnport/native_hooks.h`, `src/native_hooks.cpp` | `NativeHookRegistry` | `docs/dolphin-embedding-contract.md` |
 | Original calls | Single-use exact-key suppression tickets and invalidation | `include/gcnport/original_calls.h`, `src/original_calls.cpp` | `OriginalCallCoordinator` | `docs/dolphin-embedding-contract.md` |
 | Diagnostics | Typed runtime event delivery without direct process output | `include/gcnport/diagnostics.h` | `DiagnosticsSink` | `AGENTS.md` |
-| Dolphin backend | Boot/runtime ownership, JIT observation, hooks, original calls, invalidation | Maintained fork `Source/Core/Core/PowerPC/GcnPortRuntime.*` plus future adapter source | `PowerPC::GcnPort::RuntimeSession` | `docs/dolphin-embedding-contract.md` |
-| Dependency pin | Exact maintained-fork checkout identity | `dependencies.json`, `.gitmodules`, `cmake/DolphinDependency.cmake`, `extern/dolphin/` | `gcnport_require_dolphin_checkout` | `README.md` |
+| Dolphin backend | Boot/runtime ownership, JIT observation, hooks, original calls, invalidation | Maintained fork `Source/Core/Core/PowerPC/GcnPortRuntime.*` | `PowerPC::GcnPort::RuntimeSession` | `docs/dolphin-embedding-contract.md` |
+| Dolphin adapter | Bind Dolphin's RuntimeSession to gcnport's backend/invalidator/context/hook contracts, and carry Dolphin's include, standard and architecture requirements as usage requirements | `include/gcnport/dolphin_adapter.h`, `src/dolphin_adapter.cpp`, `cmake/DolphinDependency.cmake` | `gcnport::dolphin`, `DolphinRuntimeAdapter` | `docs/dolphin-embedding-contract.md` |
+| Dependency pin | Exact maintained-fork checkout identity and the embedded-build option set both the adapter build and the runtime gate configure | `dependencies.json`, `.gitmodules`, `cmake/DolphinDependency.cmake`, `extern/dolphin/` | `gcnport_require_dolphin_checkout`, `gcnport_add_dolphin_core` | `README.md` |
 | Verification tooling | Structure, dependency, CI-contract, build, test, format, lint, and native synthetic-JIT orchestration | `tools/`, `.github/workflows/hosted-verification.yml` | `tools/verify.py` | `README.md` |
 | Native regression inventory | Host/architecture-specific Dolphin tests, discovery, exact execution and passing-count validation | `tools/gcnport_tools/dolphin_tests.py` | `required_tests`, `validate_listing`, `validate_result` | `tools/test_dolphin_tests.py` |
 
@@ -31,6 +32,7 @@ title composition
 - PPC decode/lowering/emission/cache/memory/device behavior → maintained Dolphin fork.
 - JIT/refusal policy or execution counters → gcnport execution owner.
 - Guest-address hook selection or one-call suppression → gcnport hook/original owners.
+- Conversion between gcnport's and Dolphin's vocabularies, or a Dolphin build requirement a consumer would otherwise restate → gcnport Dolphin adapter.
 - Exact title digest, address, object layout, or native renderer behavior → consuming title.
 - Product log formatting/filtering → consuming title's Lucent adapter over `DiagnosticsSink`.
 - CLI, environment, or persisted configuration parsing → consuming title's configuration owner.

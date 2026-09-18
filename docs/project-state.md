@@ -8,12 +8,12 @@ native/dynarec ports without retaining the offline product.
 
 ## Current focus
 
-S003's one-block executor, typed fallback, hooks, invalidation, and the synchronous
-native → original → native call continuation are now all implemented and tested (Dolphin fork
-revision `8296bbe`, based on `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`;
-`tools/check_dolphin_contract.py` reports 0/12 operations absent). The remaining contract-adjacent
-work is a real `GMSE01` boot attempt from Sunbright through this public adapter, plus Android
-qualification (S006).
+S009: the `gcnport::dolphin` adapter, so a consuming title programs against `gcnport::` alone. The
+executor contracts (S003) have been implemented and tested for some time, but nothing bound them to
+Dolphin's `RuntimeSession`, so Sunbright's boot tool -- the only consumer -- reached straight into
+`Core/PowerPC/GcnPortRuntime.h` and carried its own copy of Dolphin's include directories, C++
+standard selection, architecture macros and build option list. The adapter and its target now own
+all of that. Remaining: moving that consumer onto it, and Android qualification (S006).
 
 ## Capability inventory
 
@@ -26,7 +26,8 @@ qualification (S006).
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 22 tests on POSIX x64, 21 on Windows x64, and 19 on POSIX arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
+| S009 | A consuming title uses gcnport's contracts against Dolphin without including a Dolphin header | partial | `gcnport::dolphin` binds `RuntimeBackend`, `CodeInvalidator`, `GuestContext` and the native-hook ABI to `PowerPC::GcnPort::RuntimeSession`, and carries Dolphin's include/standard/architecture requirements as usage requirements; `dolphin_adapter` test proves install → dispatch → context → result conversion → removal on a real JIT, with the refusal-reason mirror checked against both owners' own names. Sunbright's boot tool has not yet been moved onto it | G001, G002, G003 |
+| S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 31 tests on Linux/macOS x64, 30 on Windows x64, and 28 on Linux/macOS arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
 
 ## Capability details
 
@@ -214,3 +215,27 @@ gate — `tools/verify.py --runtime` — passes locally on Linux x64/Clang with 
 Dolphin suite green, plus the two `GcnPortRuntime` tests described in S003/S004. This does not
 establish hosted Windows/ARM64 success for this exact revision or gameplay conformance; the next
 hosted CI run against `5a0d43d4` will be the first to confirm those platforms.
+
+**2026-09-18: the Dolphin adapter (S009).** `gcnport::dolphin` is the target a consumer links.
+`DolphinRuntimeAdapter` implements `RuntimeBackend` over `ExecuteJitBlock`/`ExecuteRefusedBlock`/
+`ExecuteDiagnosticInterpreterBlock`, `CodeInvalidator` over `InvalidateGuestCode`, and bridges
+`gcnport::NativeHook` (a `std::function`) onto Dolphin's raw hook ABI by owning the callable's
+storage while leaving the session as the dispatch authority. A `GuestContext` over `PowerPCState`
+and `MemoryManager` completes it; guest-range validity is answered by Dolphin's own
+`GetPointerForRange` rather than a second, quieter address map.
+
+The target carries what a consumer would otherwise restate: Dolphin exposes its `Source/Core`
+include directories, its C++23 selection and its `_ARCH_64`/`_M_X86_64` architecture macros as
+directory properties of its own CMakeLists, none of which reach a sibling target through
+`target_link_libraries()`. `gcnport_add_dolphin_core` adds the pinned fork as a subdirectory and
+`gcnport_apply_dolphin_architecture` attaches the rest PUBLIC. The embedded-build option set moved
+into `dependencies.json`, which both that CMake function and `tools/gcnport_tools/dolphin_runtime.py`
+read, so the two builds cannot drift; `ENABLE_TESTS` is the one option they deliberately disagree
+about and it is set separately in each.
+
+`tools/verify.py --runtime` now builds and runs `dolphin_adapter` after Dolphin's own gtest
+discriminator, and lints the three Dolphin-dependent sources against that build tree. The project
+gate cannot lint them -- its build tree never compiles Dolphin, so clang-tidy fails on the first
+`#include "Core/..."` -- so it names them through `gcnport_tools/adapter_sources.py` and refuses if
+any other first-party translation unit is missing from its compile database. A file linted by
+neither gate was the hazard; naming the deferral is what makes it impossible rather than invisible.

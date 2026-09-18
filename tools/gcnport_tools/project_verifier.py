@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
+from .adapter_sources import dolphin_dependent_sources
 from .host import HostTarget
 from .runner import build_ninja, run
 
@@ -50,8 +52,24 @@ def verify_project(root: Path, host: HostTarget) -> None:
         for path in (root / owner).rglob("*")
         if path.suffix in {".cpp", ".h"}
     )
+    # Formatting needs no compile database, so it covers every first-party file here.
     run([host.formatter, "--dry-run", "--Werror", *cpp_files], root)
-    translation_units = [path for path in cpp_files if path.endswith(".cpp")]
+
+    # Linting does need one, and this build tree deliberately never compiles Dolphin. The
+    # Dolphin-dependent sources are therefore linted by the runtime gate against the adapter build
+    # instead -- and named, so this can prove it deferred exactly those. Anything else absent from
+    # the compile database would be a file nothing lints at all.
+    deferred = set(dolphin_dependent_sources(root))
+    translation_units = [
+        path for path in cpp_files if path.endswith(".cpp") and path not in deferred
+    ]
+    compiled = _compiled_sources(root, build)
+    unlinted = sorted(set(translation_units) - compiled)
+    if unlinted:
+        raise RuntimeError(
+            "first-party translation units are in no compile database and are not deferred to the "
+            "runtime gate: " + ", ".join(unlinted)
+        )
     run(
         [
             host.linter,
@@ -62,3 +80,21 @@ def verify_project(root: Path, host: HostTarget) -> None:
         ],
         root,
     )
+    print(
+        f"project verification passed: linted {len(translation_units)} translation unit(s); "
+        f"{len(deferred)} Dolphin-dependent source(s) deferred to --runtime"
+    )
+
+
+def _compiled_sources(root: Path, build: Path) -> set[str]:
+    database = build / "compile_commands.json"
+    if not database.is_file():
+        raise RuntimeError(f"no compile database at {database}")
+    entries = json.loads(database.read_text(encoding="utf-8"))
+    compiled = set()
+    for entry in entries:
+        path = Path(entry["directory"]) / Path(entry["file"])
+        resolved = path.resolve()
+        if resolved.is_relative_to(root):
+            compiled.add(resolved.relative_to(root).as_posix())
+    return compiled
