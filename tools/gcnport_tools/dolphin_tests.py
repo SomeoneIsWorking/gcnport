@@ -13,7 +13,7 @@ COMMON_TESTS = (
     "GcnPortRuntime.BootAuthenticatedImageAppliesGameCubeOsInitRegisters",
     "GcnPortRuntime.BootAuthenticatedImageDefaultsToNoGameCubeOsInit",
     "GcnPortRuntime.ExecuteJitBlockAdvancesCoreTimingAndRunsExactlyOneBlock",
-    "GcnPortRuntime.HardwareInitBootOwnsHeadlessControllerInterface",
+    "GcnPortRuntime.BootOwnsTheSubsystemsDolphinDereferencesUnchecked",
     "GcnPortRuntime.ExecuteJitBlocksChainsBlocksAndRestoresTheOneBlockCap",
     "GcnPortRuntime.DiscImageRefusalsNeverBootSilentlyWithoutTheDisc",
     "GcnPortRuntime.MediaInitOwnsHeadlessVideoAndDspOrRefuses",
