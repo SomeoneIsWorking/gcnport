@@ -100,10 +100,15 @@ function(gcnport_add_dolphin_core checkout binary_dir)
 
   add_subdirectory("${checkout}" "${binary_dir}" EXCLUDE_FROM_ALL)
 
-  set(GCPORT_DOLPHIN_SYS_DIR "${checkout}/Data/Sys" PARENT_SCOPE)
+  # Cached rather than PARENT_SCOPE: a consumer that adds gcnport as a subdirectory is more than
+  # one scope away from here, and these are the two paths it cannot derive for itself -- Dolphin's
+  # shipped runtime data, and the frontend-neutral Host_* stub any executable linking `core` needs.
+  set(GCPORT_DOLPHIN_SYS_DIR "${checkout}/Data/Sys" CACHE INTERNAL
+    "Dolphin's shipped runtime data, staged beside an executable that boots a title")
+  set(GCPORT_DOLPHIN_STUB_HOST "${checkout}/Source/UnitTests/StubHost.cpp" CACHE INTERNAL
+    "Dolphin's reusable frontend-neutral Host_* implementation")
   set(GCPORT_DOLPHIN_SOURCE_CORE_DIR "${checkout}/Source/Core" PARENT_SCOPE)
   set(GCPORT_DOLPHIN_BINARY_CORE_DIR "${binary_dir}/Source/Core" PARENT_SCOPE)
-  set(GCPORT_DOLPHIN_STUB_HOST "${checkout}/Source/UnitTests/StubHost.cpp" PARENT_SCOPE)
 endfunction()
 
 # Links the Dolphin data `target` resolves at runtime next to its executable. The checkout's own
