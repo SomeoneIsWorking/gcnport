@@ -13,7 +13,12 @@ executor contracts (S003) have been implemented and tested for some time, but no
 Dolphin's `RuntimeSession`, so Sunbright's boot tool -- the only consumer -- reached straight into
 `Core/PowerPC/GcnPortRuntime.h` and carried its own copy of Dolphin's include directories, C++
 standard selection, architecture macros and build option list. The adapter and its target now own
-all of that. Remaining: moving that consumer onto it, and Android qualification (S006).
+all of that, the consumer has been moved onto it, and the adapter carries the complete original-call
+surface: `GuestContext::call_original` (the body as a subroutine, control back inside the callback)
+and `DolphinRuntimeAdapter::arm_original_call` (the body under a dispatch of its own). Remaining:
+`NativeHookRegistry`/`OriginalCallCoordinator` are a second, unexecuted implementation of the
+selection and ticket policy the fork's `RuntimeSession` actually ships, and Android qualification
+(S006).
 
 ## Capability inventory
 
@@ -26,7 +31,7 @@ all of that. Remaining: moving that consumer onto it, and Android qualification 
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S009 | A consuming title uses gcnport's contracts against Dolphin without including a Dolphin header | partial | `gcnport::dolphin` binds `RuntimeBackend`, `CodeInvalidator`, `GuestContext` and the native-hook ABI to `PowerPC::GcnPort::RuntimeSession`, and carries Dolphin's include/standard/architecture requirements as usage requirements; `dolphin_adapter` test proves install → dispatch → context → result conversion → removal on a real JIT, with the refusal-reason mirror checked against both owners' own names. Sunbright's boot tool has not yet been moved onto it | G001, G002, G003 |
+| S009 | A consuming title uses gcnport's contracts against Dolphin without including a Dolphin header | partial | `gcnport::dolphin` binds `RuntimeBackend`, `CodeInvalidator`, `GuestContext` and the native-hook ABI to `PowerPC::GcnPort::RuntimeSession`, and carries Dolphin's include/standard/architecture requirements as usage requirements; `dolphin_adapter` test proves install → dispatch → context → result conversion → removal on a real JIT, plus both original-call paths (synchronous `call_original` with the body's own result read by native code afterwards, and a single-use `arm_original_call` ticket that never enters the callback), with the refusal-reason mirror checked against both owners' own names. Sunbright's boot tool links the target and installs through the adapter. Gap: `NativeHookRegistry`/`OriginalCallCoordinator` remain a parallel, never-dispatched implementation of the same policy | G001, G002, G003 |
 | S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 31 tests on Linux/macOS x64, 30 on Windows x64, and 28 on Linux/macOS arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
 
 ## Capability details
@@ -215,6 +220,22 @@ gate — `tools/verify.py --runtime` — passes locally on Linux x64/Clang with 
 Dolphin suite green, plus the two `GcnPortRuntime` tests described in S003/S004. This does not
 establish hosted Windows/ARM64 success for this exact revision or gameplay conformance; the next
 hosted CI run against `5a0d43d4` will be the first to confirm those platforms.
+
+**2026-09-18 (later): the original-call surface.** A counter proves a hook is reached; it never looks
+at what the body did. `GuestContext::call_original` closes that: a native override runs its own code,
+calls the real guest function as a subroutine, gets control back with the result still in the
+register file, and only then decides the `HookResult`. It is a method on the context rather than a
+free operation taking a key, because the context already knows which hook is dispatching and a hook
+that had to restate its own key could state a different one. `DolphinRuntimeAdapter::arm_original_call`
+is the other half: a single-use ticket that hands the body a whole dispatch of its own without
+entering the callback at all.
+
+The `dolphin_adapter` test drives both against a real JIT and separates them by evidence rather than
+by name: the synchronous path reports the callee's exact instruction count and leaves a value in r3
+that only native code running *after* the body could have written, while the ticket path leaves the
+body's own value and a callback count that did not move. A second entry after the ticket finds the
+hook again, which is what proves the ticket was single-use rather than a mode. Sunbright's
+`--super-call` option exercises the same surface against GMSE01.
 
 **2026-09-18: the Dolphin adapter (S009).** `gcnport::dolphin` is the target a consumer links.
 `DolphinRuntimeAdapter` implements `RuntimeBackend` over `ExecuteJitBlock`/`ExecuteRefusedBlock`/

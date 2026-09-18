@@ -25,6 +25,19 @@ public:
                                          std::span<std::byte> destination) = 0;
   [[nodiscard]] virtual bool write_memory(GuestAddress address,
                                           std::span<const std::byte> source) = 0;
+
+  // Runs the original guest body this hook is standing in for, as an ordinary synchronous
+  // subroutine call, and returns here. This is the "superCall" a native override needs: run native
+  // code, call through to the real function, then run more native code and still decide the
+  // HookResult. It is deliberately a method on the context rather than a free operation taking a
+  // key, because the context already knows which hook is dispatching and a hook that had to restate
+  // its own key could state a different one.
+  //
+  // `maximum_instruction_count` bounds the call. Exceeding it without the body returning is a hard
+  // fault, not a truncated call: a callee that does not return within its bound means the caller
+  // named the wrong address or the wrong bound, and continuing with half a function executed would
+  // leave the guest in a state no ordinary call could have produced.
+  [[nodiscard]] virtual InterpretedBlock call_original(std::uint32_t maximum_instruction_count) = 0;
 };
 
 } // namespace gcnport

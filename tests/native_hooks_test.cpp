@@ -50,6 +50,12 @@ public:
   bool write_memory(GuestAddress /*address*/, std::span<const std::byte> /*source*/) override {
     return false;
   }
+  // There is no guest body behind this context: it exists to prove the registry's own selection and
+  // lifetime rules without a backend. Returning an empty block would let a future test "call the
+  // original" and pass having executed nothing, so say so instead.
+  InterpretedBlock call_original(std::uint32_t /*maximum_instruction_count*/) override {
+    throw std::logic_error("MemorylessContext stands in front of no guest body to call");
+  }
 
   GuestAddress pc = 0;
   GuestAddress lr = 0;

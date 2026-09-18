@@ -38,9 +38,11 @@ using namespace gcnport;
 constexpr GuestAddress ENTRY_ADDRESS = 0x80001000;
 constexpr GuestAddress HOOK_ADDRESS = 0x80002000;
 constexpr GuestAddress LANDING_ADDRESS = 0x80003000;
+constexpr GuestAddress ORIGINAL_ADDRESS = 0x80004000;
 constexpr std::uint32_t ADDI_R3_R3_1 = 0x38630001;
 constexpr std::uint32_t BRANCH_BACK_ONE_INSTRUCTION = 0x4bfffffc;
 constexpr std::uint32_t BRANCH_TO_SELF = 0x48000000;
+constexpr std::uint32_t BLR = 0x4e800020;
 
 // Relative to the branch instruction itself, which sits one word into the hooked block -- not to
 // the block's start. Getting that wrong lands one word past the landing pad, in zero-filled memory,
@@ -109,6 +111,98 @@ struct RecordingHook {
   }
 };
 
+// The "superCall": native work, then the real guest body as a subroutine, then more native work,
+// with the hook still choosing the outcome. Every step records what it saw, so the assertions can
+// tell a body that ran from one that was skipped and a native write that landed from one that the
+// body overwrote.
+struct SuperCallHook {
+  std::uint32_t calls = 0;
+  std::uint32_t before_original = 0;
+  std::uint32_t after_original = 0;
+  InterpretedBlock original{};
+
+  HookResult operator()(GuestContext &guest) {
+    ++calls;
+    before_original = guest.general_register(3);
+    constexpr std::uint32_t kInstructionBudget = 8;
+    original = guest.call_original(kInstructionBudget);
+    after_original = guest.general_register(3);
+    // A value the guest body could not have produced by itself, written after it ran: this is what
+    // separates "the original executed and the hook kept control" from either one alone.
+    guest.set_general_register(3, after_original * 10);
+    return HookResult::return_to_caller();
+  }
+};
+
+// Both halves of the original-call surface, against the shipping session rather than a stand-in:
+// call_original runs the body inside the callback, arm_original_call hands it a dispatch of its
+// own.
+void CheckOriginalCallSurface(DolphinRuntimeAdapter &adapter,
+                              PowerPC::GcnPort::RuntimeSession &session,
+                              const ExecutionIdentity &identity, PowerPC::PowerPCState &state) {
+  const HookKey key{.identity = identity, .address = ORIGINAL_ADDRESS};
+
+  // Arming a ticket at an address with no installed hook must fail: there is nothing to suppress,
+  // and answering true would leave the caller believing the next entry was already accounted for.
+  GCPORT_REQUIRE(!adapter.arm_original_call(key));
+
+  SuperCallHook super;
+  adapter.install_hook(key, std::ref(super));
+  GCPORT_REQUIRE(adapter.hook_count() == 1);
+
+  // A key that names another module generation is not this key, however similar it looks.
+  ExecutionIdentity stale = identity;
+  stale.module_generation += 1;
+  GCPORT_REQUIRE(
+      !adapter.arm_original_call(HookKey{.identity = stale, .address = ORIGINAL_ADDRESS}));
+
+  constexpr std::uint32_t kSeed = 5;
+  state.gpr[3] = kSeed;
+  state.spr[SPR_LR] = LANDING_ADDRESS;
+  state.pc = ORIGINAL_ADDRESS;
+  state.npc = ORIGINAL_ADDRESS;
+  const JitStep called = adapter.execute_jit_block();
+  GCPORT_REQUIRE(!std::holds_alternative<BackendFault>(called));
+
+  GCPORT_REQUIRE(super.calls == 1);
+  GCPORT_REQUIRE(super.before_original == kSeed);
+  // The body really executed: two instructions from its own address, and r3 moved by exactly the
+  // one increment it contains.
+  GCPORT_REQUIRE(super.original.guest_pc == ORIGINAL_ADDRESS);
+  GCPORT_REQUIRE(super.original.instruction_count == 2);
+  GCPORT_REQUIRE(super.after_original == kSeed + 1);
+  // And the hook still owned the outcome afterwards, in both the register file and the PC.
+  GCPORT_REQUIRE(state.gpr[3] == (kSeed + 1) * 10);
+  GCPORT_REQUIRE(state.pc == LANDING_ADDRESS);
+  GCPORT_REQUIRE(session.GetExecutionCounters().synchronous_original_calls == 1);
+  GCPORT_REQUIRE(session.GetExecutionCounters().synchronous_original_instructions == 2);
+
+  // The ticket path: the body runs under the dispatcher and the callback is never entered at all,
+  // which is what tells it apart from the call_original path above.
+  GCPORT_REQUIRE(adapter.arm_original_call(key));
+  state.gpr[3] = kSeed;
+  state.spr[SPR_LR] = LANDING_ADDRESS;
+  state.pc = ORIGINAL_ADDRESS;
+  state.npc = ORIGINAL_ADDRESS;
+  const JitStep ticketed = adapter.execute_jit_block();
+  GCPORT_REQUIRE(!std::holds_alternative<BackendFault>(ticketed));
+  GCPORT_REQUIRE(super.calls == 1);
+  GCPORT_REQUIRE(state.gpr[3] == kSeed + 1);
+
+  // One shot only. The next entry finds the hook again, so r3 ends on the hook's value, not the
+  // body's -- a ticket that survived would show kSeed + 1 here.
+  state.gpr[3] = kSeed;
+  state.spr[SPR_LR] = LANDING_ADDRESS;
+  state.pc = ORIGINAL_ADDRESS;
+  state.npc = ORIGINAL_ADDRESS;
+  const JitStep hooked_again = adapter.execute_jit_block();
+  GCPORT_REQUIRE(!std::holds_alternative<BackendFault>(hooked_again));
+  GCPORT_REQUIRE(super.calls == 2);
+  GCPORT_REQUIRE(state.gpr[3] == (kSeed + 1) * 10);
+
+  GCPORT_REQUIRE(adapter.remove_hook(key));
+}
+
 void RunAdapterScenario() {
   const std::string profile_path = File::CreateTempDir();
   GCPORT_REQUIRE(!profile_path.empty());
@@ -130,6 +224,10 @@ void RunAdapterScenario() {
   memory.Write_U32(ADDI_R3_R3_1, HOOK_ADDRESS);
   memory.Write_U32(BRANCH_TO_LANDING, HOOK_ADDRESS + sizeof(std::uint32_t));
   memory.Write_U32(BRANCH_TO_SELF, LANDING_ADDRESS);
+  // An ordinary callable body: it increments r3 and returns through the link register, which is
+  // what CallOriginalSynchronously watches for to know the call finished.
+  memory.Write_U32(ADDI_R3_R3_1, ORIGINAL_ADDRESS);
+  memory.Write_U32(BLR, ORIGINAL_ADDRESS + sizeof(std::uint32_t));
 
   PowerPC::GcnPort::ExecutionIdentity dolphin_identity;
   dolphin_identity.image.sha256.front() = 0x5b;
@@ -214,6 +312,8 @@ void RunAdapterScenario() {
     GCPORT_REQUIRE(!std::holds_alternative<BackendFault>(unhooked));
     GCPORT_REQUIRE(hook.calls == 1);
     GCPORT_REQUIRE(state.gpr[3] == 1);
+
+    CheckOriginalCallSurface(adapter, session, identity, state);
   }
 
   system.GetCPU().Shutdown();
