@@ -14,6 +14,7 @@ COMMON_TESTS = (
     "GcnPortRuntime.BootAuthenticatedImageDefaultsToNoGameCubeOsInit",
     "GcnPortRuntime.ExecuteJitBlockAdvancesCoreTimingAndRunsExactlyOneBlock",
     "GcnPortRuntime.HardwareInitBootOwnsHeadlessControllerInterface",
+    "GcnPortRuntime.ExecuteJitBlocksChainsBlocksAndRestoresTheOneBlockCap",
     "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
     "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",
     "GcnPortRuntime.ClassifyFallbackReasonMatchesStaticOpcodeTables",
