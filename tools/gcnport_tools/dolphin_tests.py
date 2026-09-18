@@ -12,6 +12,8 @@ COMMON_TESTS = (
     SHIPPING_JIT_TEST,
     "GcnPortRuntime.BootAuthenticatedImageAppliesGameCubeOsInitRegisters",
     "GcnPortRuntime.BootAuthenticatedImageDefaultsToNoGameCubeOsInit",
+    "GcnPortRuntime.ExecuteJitBlockAdvancesCoreTimingAndRunsExactlyOneBlock",
+    "GcnPortRuntime.HardwareInitBootOwnsHeadlessControllerInterface",
     "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
     "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",
     "GcnPortRuntime.ClassifyFallbackReasonMatchesStaticOpcodeTables",
