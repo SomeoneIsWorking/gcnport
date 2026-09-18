@@ -7,6 +7,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(GCPORT_BUILD_TESTS "Build gcnport focused tests" ON)
+# OFF by default because turning it on compiles the whole pinned Dolphin fork. The pure gcnport
+# library -- the execution policy, hook registry, original-call coordinator and their types -- has
+# no Dolphin dependency and never will; the adapter that binds them to Dolphin's RuntimeSession is
+# what this option builds.
+option(GCPORT_BUILD_DOLPHIN_ADAPTER
+  "Build the Dolphin-backed adapter target (compiles the pinned Dolphin fork)" OFF)
 
 include(cmake/DolphinDependency.cmake)
 gcnport_require_dolphin_checkout("${CMAKE_CURRENT_SOURCE_DIR}/extern/dolphin")
@@ -25,6 +31,40 @@ target_include_directories(gcnport
     $<INSTALL_INTERFACE:include>
 )
 target_compile_features(gcnport PUBLIC cxx_std_20)
+
+if(GCPORT_BUILD_DOLPHIN_ADAPTER)
+  gcnport_add_dolphin_core(
+    "${CMAKE_CURRENT_SOURCE_DIR}/extern/dolphin" "${CMAKE_CURRENT_BINARY_DIR}/dolphin")
+
+  add_library(gcnport_dolphin src/dolphin_adapter.cpp)
+  add_library(gcnport::dolphin ALIAS gcnport_dolphin)
+  target_link_libraries(gcnport_dolphin PUBLIC gcnport::gcnport core uicommon)
+  target_include_directories(gcnport_dolphin PUBLIC
+    "${GCPORT_DOLPHIN_SOURCE_CORE_DIR}"
+    "${GCPORT_DOLPHIN_BINARY_CORE_DIR}"
+  )
+  gcnport_apply_dolphin_architecture(gcnport_dolphin)
+
+  # Deliberately not installed or exported. It links Dolphin's `core`/`uicommon`, which Dolphin
+  # does not install or put in any export set, so an exported gcnport_dolphin would name targets a
+  # downstream find_package() could never resolve. Consumers take this target by adding gcnport as
+  # a subdirectory, which is how they get the pinned Dolphin fork in the first place.
+  if(GCPORT_BUILD_TESTS)
+    include(CTest)
+    # `core` calls back into a set of Host_* free functions a real frontend normally implements for
+    # UI events. Dolphin's own test binary faces the identical requirement and answers it with its
+    # reusable, frontend-neutral StubHost.cpp; this links the same file rather than carrying a
+    # bespoke copy of it.
+    add_executable(gcnport_dolphin_adapter_test
+      tests/dolphin_adapter_test.cpp
+      "${GCPORT_DOLPHIN_STUB_HOST}"
+    )
+    target_link_libraries(gcnport_dolphin_adapter_test PRIVATE gcnport::dolphin)
+    target_include_directories(gcnport_dolphin_adapter_test PRIVATE tests)
+    gcnport_stage_dolphin_sys(gcnport_dolphin_adapter_test "${GCPORT_DOLPHIN_SYS_DIR}")
+    add_test(NAME dolphin_adapter COMMAND gcnport_dolphin_adapter_test)
+  endif()
+endif()
 
 if(GCPORT_BUILD_TESTS)
   include(CTest)

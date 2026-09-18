@@ -2,6 +2,34 @@
   "dolphin": {
     "branch": "main",
     "repository": "https://github.com/SomeoneIsWorking/dolphin.git",
-    "revision": "f5e7b38e1673345ba04a338151312ef6bfbbb3f5"
+    "revision": "f5e7b38e1673345ba04a338151312ef6bfbbb3f5",
+    "embedded_build_options": {
+      "comment": "The slice of Dolphin an embedding build compiles: Core and its dependency graph, with no frontend and no unrelated audio or video backends. Read by cmake/DolphinDependency.cmake and tools/gcnport_tools/dolphin_runtime.py, which is why it lives here instead of being written out twice. ENABLE_TESTS is absent on purpose: the standalone runtime build turns it ON for Dolphin's own gtest binary, and the adapter build leaves it OFF.",
+      "off": [
+        "ENABLE_QT",
+        "ENABLE_NOGUI",
+        "ENABLE_CLI_TOOL",
+        "ENABLE_VULKAN",
+        "ENABLE_SDL",
+        "ENABLE_CUBEB",
+        "ENABLE_ALSA",
+        "ENABLE_PULSEAUDIO",
+        "ENABLE_LLVM",
+        "ENCODE_FRAMEDUMPS",
+        "USE_UPNP",
+        "USE_DISCORD_PRESENCE",
+        "USE_MGBA",
+        "USE_RETRO_ACHIEVEMENTS",
+        "ENABLE_ANALYTICS",
+        "ENABLE_AUTOUPDATE",
+        "USE_SYSTEM_LIBS"
+      ],
+      "linux_off": [
+        "ENABLE_X11",
+        "ENABLE_EGL",
+        "ENABLE_HWDB",
+        "ENABLE_EVDEV"
+      ]
+    }
   }
 }
