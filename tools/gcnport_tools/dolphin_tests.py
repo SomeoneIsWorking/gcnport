@@ -16,6 +16,7 @@ COMMON_TESTS = (
     "GcnPortRuntime.BootOwnsTheSubsystemsDolphinDereferencesUnchecked",
     "GcnPortRuntime.ExecuteJitBlocksChainsBlocksAndRestoresTheOneBlockCap",
     "GcnPortRuntime.DiscImageRefusalsNeverBootSilentlyWithoutTheDisc",
+    "GcnPortRuntime.DiscRegionAndShippedSettingsConfigureTheConsole",
     "GcnPortRuntime.MediaInitOwnsHeadlessVideoAndDspOrRefuses",
     "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
     "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",
