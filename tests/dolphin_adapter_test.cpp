@@ -44,6 +44,16 @@ constexpr std::uint32_t BRANCH_BACK_ONE_INSTRUCTION = 0x4bfffffc;
 constexpr std::uint32_t BRANCH_TO_SELF = 0x48000000;
 constexpr std::uint32_t BLR = 0x4e800020;
 
+// The first floating argument register, one the caller leaves alone, and the one the hook writes.
+constexpr std::size_t FLOAT_ARGUMENT_REGISTER = 1;
+constexpr std::size_t UNTOUCHED_FLOAT_REGISTER = 5;
+constexpr std::size_t FLOAT_RESULT_REGISTER = 2;
+// Neither value is representable as a single, which is the point: the register holds a double
+// whatever the callee declared, and an accessor that narrowed through a float would answer a
+// different number rather than failing outright.
+constexpr double GUEST_LOADED_FLOAT = 1.0 / 3.0;
+constexpr double HOOK_WRITTEN_FLOAT = -2.0 / 7.0;
+
 // Relative to the branch instruction itself, which sits one word into the hooked block -- not to
 // the block's start. Getting that wrong lands one word past the landing pad, in zero-filled memory,
 // and the symptom is the interpreter walking forward through "Unknown instruction 00000000".
@@ -97,6 +107,8 @@ struct RecordingHook {
   std::array<std::byte, sizeof(std::uint32_t)> observed_instruction{};
   bool read_succeeded = false;
   bool refused_unmapped_read = false;
+  double observed_float = 0.0;
+  double observed_untouched_float = 1.0;
 
   HookResult operator()(GuestContext &guest) {
     ++calls;
@@ -107,6 +119,13 @@ struct RecordingHook {
     std::array<std::byte, sizeof(std::uint32_t)> discarded{};
     refused_unmapped_read = !guest.read_memory(0x0f000000, discarded);
     guest.set_general_register(3, 7);
+    // The floating file, which the ABI puts every float argument in and the general file never
+    // carries. Both halves are recorded: the register the caller loaded, and one the caller left
+    // alone -- an implementation reading the wrong file or the wrong index would answer the same
+    // thing for both, and reading only the loaded one could not tell.
+    observed_float = guest.floating_register(FLOAT_ARGUMENT_REGISTER);
+    observed_untouched_float = guest.floating_register(UNTOUCHED_FLOAT_REGISTER);
+    guest.set_floating_register(FLOAT_RESULT_REGISTER, HOOK_WRITTEN_FLOAT);
     return HookResult::continue_at(LANDING_ADDRESS);
   }
 };
@@ -279,6 +298,9 @@ void RunAdapterScenario() {
     state.gpr[3] = 0;
     state.pc = HOOK_ADDRESS;
     state.npc = HOOK_ADDRESS;
+    state.ps[FLOAT_ARGUMENT_REGISTER].SetPS0(GUEST_LOADED_FLOAT);
+    state.ps[UNTOUCHED_FLOAT_REGISTER].SetPS0(0.0);
+    state.ps[FLOAT_RESULT_REGISTER].SetPS0(0.0);
     const JitStep hooked = adapter.execute_jit_block();
     GCPORT_REQUIRE(!std::holds_alternative<BackendFault>(hooked));
 
@@ -298,6 +320,14 @@ void RunAdapterScenario() {
     // so 7 exactly also proves the original body did not run.
     GCPORT_REQUIRE(state.gpr[3] == 7);
     GCPORT_REQUIRE(state.pc == LANDING_ADDRESS);
+
+    // The float the caller loaded reached the hook exactly, and the register it left alone did not
+    // answer the same thing. The value the hook wrote reached the guest's own register file, which
+    // is what makes this the register a guest function would go on to read rather than a copy.
+    GCPORT_REQUIRE(hook.observed_float == GUEST_LOADED_FLOAT);
+    GCPORT_REQUIRE(hook.observed_untouched_float == 0.0);
+    GCPORT_REQUIRE(state.ps[FLOAT_RESULT_REGISTER].PS0AsDouble() == HOOK_WRITTEN_FLOAT);
+    GCPORT_REQUIRE(state.ps[FLOAT_ARGUMENT_REGISTER].PS0AsDouble() == GUEST_LOADED_FLOAT);
 
     GCPORT_REQUIRE(adapter.remove_hook(key));
     GCPORT_REQUIRE(adapter.hook_count() == 0);

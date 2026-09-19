@@ -44,6 +44,8 @@ public:
   void set_general_register(std::size_t index, std::uint32_t value) override {
     gpr.at(index) = value;
   }
+  [[nodiscard]] double floating_register(std::size_t index) const override { return fpr.at(index); }
+  void set_floating_register(std::size_t index, double value) override { fpr.at(index) = value; }
   bool read_memory(GuestAddress /*address*/, std::span<std::byte> /*destination*/) override {
     return false;
   }
@@ -60,6 +62,7 @@ public:
   GuestAddress pc = 0;
   GuestAddress lr = 0;
   std::array<std::uint32_t, 32> gpr{};
+  std::array<double, 32> fpr{};
 };
 
 void hooks_are_scoped_by_image_generation_and_address() {
