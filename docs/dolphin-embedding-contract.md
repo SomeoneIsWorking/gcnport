@@ -278,6 +278,22 @@ Two exceptions required explicit scoping, found empirically (both crashed a firs
   and no memory card inserted), not a fabricated shortcut. A title consumer that wants persistent
   input/storage devices attaches them afterward through this same Config surface; `gcnport` does not
   own that policy.
+- `memory_card_slot_a_path` is that policy stated by the consumer rather than left to the default.
+  A non-empty path attaches Dolphin's own maintained raw `MemoryCard` device to EXI slot A instead
+  of the empty slot above, through `Config::MAIN_SLOT_A` and `Config::MAIN_MEMCARD_A_PATH`, and the
+  device owns the file from there: it creates and formats one that does not exist, and flushes the
+  title's writes back to it on the way out. `Config::GetMemcardPath` rewrites the configured name to
+  carry the booted region's code, so saves land under the same region `SConfig` already holds rather
+  than a second, independently guessed one. Empty attaches nothing and stays the default. It
+  requires `apply_hardware_init`, which owns `ExpansionInterface`, and a disc, whose region is the
+  only thing that names the card file — without one `SConfig` leaves the region `Unknown`, which
+  `GetDirectoryForRegion` reaches as its unreachable default and asserts on. Both are refused,
+  because the alternative is a boot that succeeds with the slot silently empty and a title that
+  reports it much later in its own words — GMSE01 says "There is no Memory Card in Slot A." The
+  exact filename stays Dolphin's to choose: `GetMemcardPath` appends the region and the card's free
+  block count to the name the caller gave, so a consumer relies on the directory it named rather
+  than on a predicted path. `gcnport` still ships no card and chooses no save location: only the
+  consumer's path crosses the boundary.
 
 A third, unrelated mechanism surfaced while proving the fix: a GameCube hardware register has no
 fastmem-backed page (`MemoryManager::Init`'s `physical_regions` table maps only RAM/L1/fake-VMEM/
