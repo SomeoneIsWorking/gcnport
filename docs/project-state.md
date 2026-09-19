@@ -100,7 +100,13 @@ audio backend, and `ExpansionInterfaceManager`/`SerialInterfaceManager::Init` de
 `MemoryCardFolder` device (host disk) and a live GameCube controller (an uninitialized host
 `ControllerInterface`). The new flag forces `SIDEVICE_NONE` on every SI channel, `EXIDeviceType::None`
 on both EXI memory card slots, and the `NullSound` ("No Audio Output") backend before calling
-`HW::Init` — three ordinary real hardware/software states, not a fabricated shortcut. A hardware
+`HW::Init` — three ordinary real hardware/software states, not a fabricated shortcut. A consumer
+that needs storage rather than an empty slot states it: `memory_card_slot_a_path` attaches Dolphin's
+own raw `MemoryCard` device to slot A instead, and the device creates, formats and flushes the file
+the caller named. It requires `apply_hardware_init`, which owns `ExpansionInterface`, and a disc,
+whose region is what names the card file; both refusals and the attached card are proven by
+`GcnPortRuntimeTest.MemoryCardAttachesOnlyWhenTheConsumerNamesOne`, which also holds slot B at
+`None` so the positive means one card rather than every slot filled. A hardware
 register also has no fastmem-backed page, so a JIT-generated fastmem load/store that targets one
 deliberately raises SIGSEGV to reach the safe MMU/MMIO path; the flag also installs Dolphin's
 `EMM::InstallExceptionHandler` (guarded by `EMM::IsExceptionHandlerSupported()`), which a bare

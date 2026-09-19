@@ -17,6 +17,7 @@ COMMON_TESTS = (
     "GcnPortRuntime.ExecuteJitBlocksChainsBlocksAndRestoresTheOneBlockCap",
     "GcnPortRuntime.DiscImageRefusalsNeverBootSilentlyWithoutTheDisc",
     "GcnPortRuntime.DiscRegionAndShippedSettingsConfigureTheConsole",
+    "GcnPortRuntime.MemoryCardAttachesOnlyWhenTheConsumerNamesOne",
     "GcnPortRuntime.MediaInitOwnsHeadlessVideoAndDspOrRefuses",
     "GcnPortRuntime.PublicAdapterBootExecuteOriginalAndTypedFallback",
     "GcnPortRuntime.HookCallsOriginalSynchronouslyThenResumesNativeWork",

@@ -29,11 +29,11 @@ def result_for(names: tuple[str, ...]) -> str:
 class DolphinReportTests(unittest.TestCase):
     def test_exact_platform_architecture_inventories(self) -> None:
         for system, arch, count in (
-            ("windows", "x64", 30),
-            ("linux", "x64", 31),
-            ("macos", "x64", 31),
-            ("linux", "arm64", 28),
-            ("macos", "arm64", 28),
+            ("windows", "x64", 31),
+            ("linux", "x64", 32),
+            ("macos", "x64", 32),
+            ("linux", "arm64", 29),
+            ("macos", "arm64", 29),
         ):
             with self.subTest(system=system, arch=arch):
                 names = required_tests(replace(HOST, operating_system=system, architecture=arch))
