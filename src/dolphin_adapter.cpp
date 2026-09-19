@@ -69,6 +69,13 @@ public:
     state_.gpr[checked_register_index(index)] = value;
   }
 
+  [[nodiscard]] double floating_register(std::size_t index) const override {
+    return state_.ps[checked_floating_register_index(index)].PS0AsDouble();
+  }
+  void set_floating_register(std::size_t index, double value) override {
+    state_.ps[checked_floating_register_index(index)].SetPS0(value);
+  }
+
   // Dolphin owns what counts as a valid guest range, and GetPointerForRange is where it says so --
   // including raising its own panic alert, which the embedding process answers through its message
   // handler. Re-deriving the answer here would be a second, quieter address map that could disagree
@@ -111,6 +118,16 @@ private:
     constexpr std::size_t kGeneralRegisterCount = 32;
     if (index >= kGeneralRegisterCount) {
       throw std::out_of_range("guest general register index out of range");
+    }
+    return index;
+  }
+
+  // The same reasoning as above, against the other file. The two counts happen to agree on Gekko,
+  // and saying so twice is what keeps a later change to one from silently widening the other.
+  [[nodiscard]] static std::size_t checked_floating_register_index(std::size_t index) {
+    constexpr std::size_t kFloatingRegisterCount = 32;
+    if (index >= kFloatingRegisterCount) {
+      throw std::out_of_range("guest floating-point register index out of range");
     }
     return index;
   }
