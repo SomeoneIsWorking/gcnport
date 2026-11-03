@@ -2,13 +2,15 @@
 
 ## Comparison baseline
 
-The baseline is upstream Dolphin as a standalone full emulator plus Sunbright's former title-local,
-offline-generated execution path. `gcnport` is intended to expose Dolphin's runtime executor to
+The baseline is upstream Dolphin as a standalone full emulator. `gcnport` is intended to expose Dolphin's runtime executor to
 native/dynarec ports without retaining the offline product.
 
 ## Current focus
 
-S009: the `gcnport::dolphin` adapter, so a consuming title programs against `gcnport::` alone. The
+gcnport has no consuming title: Sunbright, the only one, was deleted on 2026-11-03, so every
+claim below that cites its boot tool no longer has live evidence and must be re-proved by the next
+GameCube consumer. S009: the `gcnport::dolphin` adapter, so a consuming title programs against
+`gcnport::` alone. The
 executor contracts (S003) have been implemented and tested for some time, but nothing bound them to
 Dolphin's `RuntimeSession`, so Sunbright's boot tool -- the only consumer -- reached straight into
 `Core/PowerPC/GcnPortRuntime.h` and carried its own copy of Dolphin's include directories, C++
@@ -31,7 +33,7 @@ selection and ticket policy the fork's `RuntimeSession` actually ships, and Andr
 | S005 | Apple Silicon macOS AArch64 JIT is qualified through gcnport | partial | native hosted synthetic JIT test passes; complete S003 adapter and representative gameplay remain missing | G001, G003 |
 | S006 | Android arm64-v8a JIT is qualified through gcnport | missing | requires S003 | G001, G003 |
 | S007 | Local C++/Python structure and verification gate is reproducible | verified | Clang/Ninja gate and controlled negatives pass | G003 |
-| S009 | A consuming title uses gcnport's contracts against Dolphin without including a Dolphin header | partial | `gcnport::dolphin` binds `RuntimeBackend`, `CodeInvalidator`, `GuestContext` and the native-hook ABI to `PowerPC::GcnPort::RuntimeSession`, and carries Dolphin's include/standard/architecture requirements as usage requirements; `dolphin_adapter` test proves install → dispatch → context → result conversion → removal on a real JIT, plus both original-call paths (synchronous `call_original` with the body's own result read by native code afterwards, and a single-use `arm_original_call` ticket that never enters the callback), with the refusal-reason mirror checked against both owners' own names. Sunbright's boot tool links the target and installs through the adapter. Gap: `NativeHookRegistry`/`OriginalCallCoordinator` remain a parallel, never-dispatched implementation of the same policy | G001, G002, G003 |
+| S009 | A consuming title uses gcnport's contracts against Dolphin without including a Dolphin header | partial | `gcnport::dolphin` binds `RuntimeBackend`, `CodeInvalidator`, `GuestContext` and the native-hook ABI to `PowerPC::GcnPort::RuntimeSession`, and carries Dolphin's include/standard/architecture requirements as usage requirements; `dolphin_adapter` test proves install → dispatch → context → result conversion → removal on a real JIT, plus both original-call paths (synchronous `call_original` with the body's own result read by native code afterwards, and a single-use `arm_original_call` ticket that never enters the callback), with the refusal-reason mirror checked against both owners' own names. Gap: `NativeHookRegistry`/`OriginalCallCoordinator` remain a parallel, never-dispatched implementation of the same policy | G001, G002, G003 |
 | S008 | Asset-free hosted synthetic-JIT verification covers supported native desktop hosts | partial | required regression inventory is 31 tests on Linux/macOS x64, 30 on Windows x64, and 28 on Linux/macOS arm64; Linux x64 dirty-tree integration passes, but the uncommitted portability batch awaits real Qt verification and hosted Windows qualification | G003 |
 
 ## Capability details
@@ -78,8 +80,7 @@ own address through Dolphin's plain interpreter (safe to call reentrantly from i
 because it never touches the JIT dispatcher's own call stack) until it returns to the live link
 register or a caller-supplied instruction bound is exceeded (a hard fault, not a silent truncation),
 then hands control back to the SAME callback invocation with PC/NPC restored so the callback keeps
-deciding the final `HookResult`. This is the "superCall" pattern Sunbright's own architecture
-requires for the `J3DShape::draw` discriminator: native work, call through to the original, more
+deciding the final `HookResult`. This is the "superCall" pattern a title override needs: native work, call through to the original, more
 native work, one decision.
 
 **2026-09-18 (hardware bring-up):** `BootAuthenticatedImage` gained a second boot option,
@@ -135,10 +136,8 @@ session; +2 from the hardware-init tests above,
 `BootAuthenticatedImageAppliesGameCubeHardwareInitMmio` and its `EXPECT_DEATH` negative control).
 
 Gap: exact `GMSE01` boot (these tests use only small synthetic in-memory images), per-instruction
-retirement counts, and publication-failure injection remain missing. Sunbright's own
-`tools/gcnport_boot/gmse01_boot.cpp` consumes `apply_gamecube_hardware_init` against the real image
-outside this repository (gcnport never links the ROM); see that project's own issue 37 and
-project-state for the resulting block/instruction counts or next diagnosed blocker.
+retirement counts, and publication-failure injection remain missing. No title consumes
+`apply_gamecube_hardware_init` against a real image.
 
 ### S005 — Apple Silicon execution
 
@@ -240,8 +239,7 @@ The `dolphin_adapter` test drives both against a real JIT and separates them by 
 by name: the synchronous path reports the callee's exact instruction count and leaves a value in r3
 that only native code running *after* the body could have written, while the ticket path leaves the
 body's own value and a callback count that did not move. A second entry after the ticket finds the
-hook again, which is what proves the ticket was single-use rather than a mode. Sunbright's
-`--super-call` option exercises the same surface against GMSE01.
+hook again, which is what proves the ticket was single-use rather than a mode.
 
 **2026-09-18: the Dolphin adapter (S009).** `gcnport::dolphin` is the target a consumer links.
 `DolphinRuntimeAdapter` implements `RuntimeBackend` over `ExecuteJitBlock`/`ExecuteRefusedBlock`/

@@ -228,8 +228,7 @@ existed and passed but were not part of the enforced gate before this change).
 
 A real GameCube DOL's own linked code does not need a caller to also seed a stack pointer: its own
 `__start`/`__init_registers` prologue loads `r1`/`r2`/`r13` from the DOL's own linked
-`_stack_addr`/`_SDA2_BASE_`/`_SDA_BASE_` immediates before any memory access (evidenced in
-`decomp/sms`'s recovered `src/dolphin/os/__start.c` for the Sunbright consumer). A caller manually
+`_stack_addr`/`_SDA2_BASE_`/`_SDA_BASE_` immediates before any memory access (the SDK's `__start.c`). A caller manually
 guessing a stack pointer address is therefore unnecessary once this OS-init flag is set.
 
 ## GameCube hardware bring-up (MMIO handler table)
@@ -240,8 +239,7 @@ SerialInterface, ExpansionInterface, AudioInterface, MemoryInterface, DSP, DVDIn
 CommandProcessor, PixelEngine). A real title's own `__init_hardware`-equivalent code reads or writes
 one of these registers very early in boot (e.g. GameCube `ProcessorInterface` at physical
 `0x0C003000`); without a registered handler that access calls through an uninitialized function
-pointer and crashes — first observed booting exact `GMSE01` through Sunbright's own
-`tools/gcnport_boot/gmse01_boot.cpp` as a SIGSEGV inside `MMIO::WriteHandler<u32>::Write`
+pointer and crashes — first observed booting exact `GMSE01` through a title boot tool as a SIGSEGV inside `MMIO::WriteHandler<u32>::Write`
 (`Source/Core/Core/HW/MMIO.cpp`) writing to physical `0x0C003004` (`PI_INTERRUPT_MASK`). This is not
 a JIT correctness bug; it is missing hardware-owner bring-up, exactly like the OS-init/BAT gap above.
 
