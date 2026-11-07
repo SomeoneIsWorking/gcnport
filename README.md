@@ -55,3 +55,5 @@ Hosted verification uses full-history recursive checkout and immutable action re
 same Python verifier plus the synthetic Dolphin JIT test natively on Linux x64/arm64, Windows x64,
 and macOS x64/arm64. Android is deliberately absent: no real NDK/APK/device runtime boundary exists
 yet, so an Android job would be a placeholder rather than execution evidence.
+
+Built with AI assistance (Claude and other LLMs).
