@@ -48,7 +48,7 @@ uv run --frozen python tools/check_dolphin_contract.py --require
 ```
 
 The Dolphin dependency is the maintained `SomeoneIsWorking/dolphin` fork at
-`9dfd5ac1f4c0c2d9da7661e1895a39b293286521`. The exact commit is published on
+`6c72a1bfa24b14b01bbc3a0d521f18b7638d2936`. The exact commit is published on
 the fork's `main` branch and is reproducible by the pinned submodule.
 
 Hosted verification uses full-history recursive checkout and immutable action revisions. It runs the

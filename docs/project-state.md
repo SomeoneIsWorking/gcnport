@@ -62,7 +62,7 @@ machine alone does not prove that backend property.
 
 ### S003 — Dolphin embedding contract
 
-Fork revision `8296bbe` (built on `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`) includes an
+Fork revision `8296bbe` (built on `599f4132283e6bc43602da895919a993f3c75308`) includes an
 instance-owned `PowerPC::GcnPort::RuntimeSession`, exact digest/generation/address hook selection,
 Jit64 and JitArm64 generated hook guards, PPC analyzer may-exit liveness, real cache invalidation,
 typed cold/cache/hook/original-entry counters, a public `BootAuthenticatedImage`/
@@ -214,7 +214,7 @@ inventory/report controls exercise supported and unsupported hosts, absent or du
 incorrect execution/counts, failures, and skipped tests. This does not change launcher behavior.
 
 **2026-09-18: landed.** The portability batch and the S003/S004 public-adapter work above were
-committed together as child `5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd` and pushed to the fork's
+committed together as child `599f4132283e6bc43602da895919a993f3c75308` and pushed to the fork's
 `main`, then re-pinned here. `DolphinQt` (including the touched `NetworkWidget.cpp`) only builds
 under `-DENABLE_QT=OFF` per `Source/Core/CMakeLists.txt`'s `if(ENABLE_QT)` guard, and gcnport never
 enables Qt — the earlier note requiring `qt6-qtbase-devel` to "land" this batch was never a real gate

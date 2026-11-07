@@ -7,7 +7,7 @@ remaining operations are still a contract rather than implemented capability.
 ## Evidence at the pinned revision
 
 The inspected dependency is `SomeoneIsWorking/dolphin` revision
-`818ef9de938b3672880f5ff1468729fdaf643679`, published on the fork's `main` branch and pinned by the
+`427ba04475a98d011bfd3ced6a00fc2227d29579`, published on the fork's `main` branch and pinned by the
 gcnport gitlink.
 
 - `JitBase::Dispatch` returns an already-published block from Dolphin's block cache.
@@ -162,7 +162,7 @@ identity selection. Its counters are incremented by generated block-entry and ho
 test-side model.
 
 **2026-09-18 update**: the public one-block adapter API is now real, at revision
-`5a0d43d42e03f1dfe9bb5377ab90c3532da0e4cd`. `PowerPC::GcnPort::RuntimeSession`,
+`599f4132283e6bc43602da895919a993f3c75308`. `PowerPC::GcnPort::RuntimeSession`,
 `BootAuthenticatedImage`/`ShutdownBootedImage`, `ExecuteJitBlock`, `ExecuteRefusedBlock`,
 `ExecuteDiagnosticInterpreterBlock`, `InstallNativeHook`/`RemoveNativeHook`, `ExecuteOriginalOnce`,
 `InvalidateGuestCode`, and typed `ExecutionCounters` (including `JitRefusalReason`-classified
