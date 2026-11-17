@@ -25,3 +25,5 @@ Execution policy (JIT default, bounded fallback, invalidation, per-host backends
   through their Lucent logger. It receives validated immutable configuration from the consumer.
 - There is no launcher: the project has no runnable product.
 - Full verifier: `uv run --frozen python tools/verify.py` (Clang/Ninja).
+
+- Per-operation cost metering is missing and needs building: Lucent `lucent::perf` scopes (`OperationMeter`) reporting the run-end lines of the re-harness `perf-units` skill.
